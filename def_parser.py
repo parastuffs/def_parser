@@ -77,7 +77,7 @@ class Design:
                             else:
                                 design.addGate(gate)
                         else:
-                            design.addGate(gate)
+                            self.addGate(gate)
                         # endOfComponents = True
 
 
@@ -118,7 +118,7 @@ class Design:
                     gate.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2]))
                     gate.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3]))
 
-                    design.addGate(gate)
+                    self.addGate(gate)
 
                 line = f.readline()
 
@@ -132,7 +132,13 @@ class Design:
         with open("ldpc_5.8.def", 'r') as f:
             line = f.readline()
             while line:
+
+                if 'END NETS' in line:
+                    endOfNets = True
+                    break
+
                 if ('NETS' in line and not 'SPECIALNETS' in line) or (inNets):
+                    inNets = True
                     # print line
                     line = line.strip("\n")
 
@@ -142,25 +148,29 @@ class Design:
                         # print line.split(' ')[1]
                         # Read the next line after the net name,
                         # it should contain the connected cells names.
-                        nextLine = f.readline()
-                        while not ' ROUTED ' in nextLine:
-                            split = nextLine.split(' ')
-                            nextLine = f.readline()
+                        gatesLine = f.readline()
+                        while not ' ROUTED ' in gatesLine:
+                            split = gatesLine.split(')') # Split the line so that each element is only one pin or gate
+                            for gateBlock in split:
+                            	gateBlockSplit = gateBlock.split(' ') # Split it again to isolate the gate/pin name
 
+                            	if len(gateBlockSplit) > 1 and gateBlockSplit[1] == "PIN":
+                            		# this a pin, add its name to the net
+                            		# '2' bacause we have {(, PIN, <pin_name>}
+                            		net.addGate(gateBlockSplit[2])
+                            	elif len(gateBlockSplit) > 1:
+                            		# This is a gate, add its name to the net
+                            		# '1' because we have {(, <gate_name>, <gate_port>}
+                            		net.addGate(gateBlockSplit[1])
 
+                            gatesLine = f.readline().strip("\n")
 
-                    if ';' in line:
-                        endOfNet = True
+                    	self.addNet(net)
+                    # end if
 
-
-
-                    inNets = True
-
-                if 'END NETS' in line:
-                    endOfNets = True
-                    break
 
                 line = f.readline()
+            # end while
 
 
 
@@ -174,11 +184,22 @@ class Design:
         # TODO: check if gate is a Gate object
         self.gates.append(gate) # Append Gate object
 
+    def addNet(self, net):
+    	# TODO: check if net is a Net object
+    	self.nets.append(net)
+
 class Net:
     def __init__(self, name):
         self.name = name
         self.ID = 0
         self.wl = 0
+        self.gates = []
+
+    def addGate(self, gate):
+    	"""
+    	gate as str
+    	"""
+    	self.gates.append(gate)
 
 class Gate:
     def __init__(self, name, isPin):
@@ -202,8 +223,9 @@ if __name__ == "__main__":
     design = Design()
     design.ReadArea()
     design.ExtractCells()
-    design.Digest()
+    # design.Digest()
     design.extractPins()
-    design.Digest()
+    # design.Digest()
 
-    # design.extractNets()
+    design.extractNets()
+    design.Digest()
