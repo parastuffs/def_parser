@@ -8,8 +8,8 @@ macros = dict() # Filled inside extractStdCells()
 class Design:
     def __init__(self):
         self.nets = []        # List of Net objects
-        self.gates = []        # List of Gate objects
-        self.pins = []        # List of Pin objects
+        self.gates = dict()
+        self.pins = dict()        # List of Pin objects
         self.area = 0
         self.width = 0
         self.height = 0
@@ -132,12 +132,13 @@ class Design:
 
                 line = f.readline()
 
+
     def extractNets(self):
         print "Reading the def to extract nets."
 
         endOfNet = False # end of single net
         endOfNets = False # end of bloc with all the nets
-        inNets = True
+        inNets = False
 
         with open("ldpc_5.8.def", 'r') as f:
             line = f.readline()
@@ -149,29 +150,27 @@ class Design:
 
                 if ('NETS' in line and not 'SPECIALNETS' in line) or (inNets):
                     inNets = True
-                    # print line
                     line = line.strip("\n")
 
                     if '- ' in line:
                         # new net
                         net = Net(line.split(' ')[1])
-                        # print line.split(' ')[1]
                         # Read the next line after the net name,
                         # it should contain the connected cells names.
                         gatesLine = f.readline()
-                        while not ' ROUTED ' in gatesLine:
+                        while not 'ROUTED' in gatesLine:
                             split = gatesLine.split(')') # Split the line so that each element is only one pin or gate
                             for gateBlock in split:
-                                gateBlockSplit = gateBlock.split(' ') # Split it again to isolate the gate/pin name
+                                gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
 
                                 if len(gateBlockSplit) > 1 and gateBlockSplit[1] == "PIN":
                                     # this a pin, add its name to the net
                                     # '2' bacause we have {(, PIN, <pin_name>}
-                                    net.addGate(gateBlockSplit[2])
+                                    net.addPin(self.pins.get(gateBlockSplit[2]))
                                 elif len(gateBlockSplit) > 1:
                                     # This is a gate, add its name to the net
                                     # '1' because we have {(, <gate_name>, <gate_port>}
-                                    net.addGate(gateBlockSplit[1])
+                                    net.addGate(self.gates.get(gateBlockSplit[1]))
 
                             gatesLine = f.readline().strip("\n")
 
@@ -251,27 +250,16 @@ class Design:
         If the origin of a gate is in a cluster, it belongs to that cluster.
         Hence, the leftmost cluster will have more gates.
         """
-        # First, copy the list of gate so that we can pop() palced gates as we go.
-        gatesToPlace = copy.deepcopy(self.gates)
 
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
         for cluster in clusters:
             i = 0
 
-            # Boolean used when iterating over the gate list.
-            # This will be True when we reach the end of the gate list.
-            noMoreGates = False
-            while not noMoreGates:
+            for key in self.gates:
                 # Check if the gate coordinates are below the top right corner of the cluster
                 # and above the bottom left corner.
-                if gatesToPlace[i].x < (cluster.origin[0] + cluster.width) and gatesToPlace[i].y < (cluster.origin[1] + cluster.height) and gatesToPlace[i].x > cluster.origin[0] and gatesToPlace[i].y > cluster.origin[1]:
-                    cluster.addGate(gatesToPlace[i])
-                    gatesToPlace.pop(i)
-                else:
-                    i += 1
-
-                if i >= len(gatesToPlace):
-                    noMoreGates = True
+                if self.gates[key].x < (cluster.origin[0] + cluster.width) and self.gates[key].y < (cluster.origin[1] + cluster.height) and self.gates[key].x > cluster.origin[0] and self.gates[key].y > cluster.origin[1]:
+                    cluster.addGate(self.gates[key])
 
             checkClusterGates += len(cluster.gates)
 
@@ -295,11 +283,11 @@ class Design:
 
     def addGate(self, gate):
         # TODO: check if gate is a Gate object
-        self.gates.append(gate) # Append Gate object
+        self.gates[gate.name] = gate
 
     def addPin(self, pin):
         # TODO: check if pin is a Pin object
-        self.pins.append(pin) # Append Pin object
+        self.pins[pin.name] = pin
 
     def addNet(self, net):
         # TODO: check if net is a Net object
@@ -313,13 +301,20 @@ class Net:
         self.name = name
         self.ID = 0
         self.wl = 0
-        self.gates = []
+        self.gates = dict()
+        self.pins = dict()
 
     def addGate(self, gate):
         """
-        gate as str
+        gate as Gate object
         """
-        self.gates.append(gate)
+        self.gates[gate.name] = gate
+
+    def addPin(self, pin):
+        """
+        pin as Pin object
+        """
+        self.pins[pin.name] = pin
 
 class Gate:
     def __init__(self, name):
@@ -379,10 +374,10 @@ class Cluster:
         self.width = width
         self.height = height
         self.origin = origin
-        self.gates = [] # List of Gate objects
+        self.gates = dict()
 
     def addGate(self, gate):
-        self.gates.append(gate)
+        self.gates[gate.name] = gate
 
 
 def extractStdCells():
@@ -478,15 +473,12 @@ if __name__ == "__main__":
     print imgW*imgH
     maxPos = 0
 
-    for gate in design.gates:
-        position = int(imgW * ((gate.y / design.height) * imgH) + ((gate.x / design.width) * imgW))
+    for key in design.gates:
+        position = int(imgW * ((design.gates[key].y / design.height) * imgH) + ((design.gates[key].x / design.width) * imgW))
         # print "------"
         # print design.height
         # print design.width
-        # print gate.y
-        # print gate.x
         # print position
-        # print gate.y / design.height
         data[position] += 100
         if data[position] > maxPos:
             maxPos = data[position]
