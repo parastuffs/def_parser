@@ -1,6 +1,7 @@
 from __future__ import division # http://stackoverflow.com/questions/1267869/how-can-i-force-division-to-be-floating-point-division-keeps-rounding-down-to-0
 from PIL import Image
 from math import *
+import copy
 
 macros = dict() # Filled inside extractStdCells()
 
@@ -245,9 +246,40 @@ class Design:
         print "Total cluster area: " + str(totalClustersArea)
 
 
+        """
+        And now, find out wich gates are in each cluster.
+        If the origin of a gate is in a cluster, it belongs to that cluster.
+        Hence, the leftmost cluster will have more gates.
+        """
+        # First, copy the list of gate so that we can pop() palced gates as we go.
+        gatesToPlace = copy.deepcopy(self.gates)
+
+        checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
+        for cluster in clusters:
+            i = 0
+
+            # Boolean used when iterating over the gate list.
+            # This will be True when we reach the end of the gate list.
+            noMoreGates = False
+            while not noMoreGates:
+                # Check if the gate coordinates are below the top right corner of the cluster
+                # and above the bottom left corner.
+                if gatesToPlace[i].x < (cluster.origin[0] + cluster.width) and gatesToPlace[i].y < (cluster.origin[1] + cluster.height) and gatesToPlace[i].x > cluster.origin[0] and gatesToPlace[i].y > cluster.origin[1]:
+                    cluster.addGate(gatesToPlace[i])
+                    gatesToPlace.pop(i)
+                else:
+                    i += 1
+
+                if i >= len(gatesToPlace):
+                    noMoreGates = True
+
+            checkClusterGates += len(cluster.gates)
+
+        print "Total amount of place gates in clusters: " + str(checkClusterGates)
 
 
-        # Once they are placed, we need to find out which gates are in each cluster.
+
+
 
 
 
@@ -347,6 +379,10 @@ class Cluster:
         self.width = width
         self.height = height
         self.origin = origin
+        self.gates = [] # List of Gate objects
+
+    def addGate(self, gate):
+        self.gates.append(gate)
 
 
 def extractStdCells():
