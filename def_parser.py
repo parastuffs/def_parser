@@ -201,7 +201,7 @@ class Design:
         count = 0
         clusters = []
         while not full:
-            if originY > self.height:
+            if originY >= self.height:
                 full = True
             else:
                 count += 1
@@ -214,7 +214,10 @@ class Design:
 
                 newClusterHeight = int(clusterHeight)
                 if newClusterHeight > self.height - originY - newClusterHeight:
-                    newClusterHeight += self.height - originY
+                    newClusterHeight += self.height - originY -newClusterHeight
+
+                # print "new cluster height: " + str(newClusterHeight)
+                # print "new cluster origin: (" + str(originX) + ", " + str(originY) + ")"
 
                 # TODO change the cluster.origin into some sort of point object.
                 clusters.append(Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY]))
@@ -227,7 +230,10 @@ class Design:
 
         print "Total cluster created: " + str(count)
 
+        # Check for overshoot, clusters outside of design space.
+        totalClustersArea = 0
         for cluster in clusters:
+            totalClustersArea += cluster.width * cluster.height
             if cluster.origin[0] + cluster.width > self.width:
                 print "WARNING: cluster width out of design bounds."
             if cluster.origin[1] + cluster.height > self.height:
@@ -236,6 +242,8 @@ class Design:
                 print "Cluster height: " + str(cluster.height)
                 print "Design height: " + str(self.height)
                 print "Overshoot: " + str(cluster.origin[1] + cluster.height - self.height)
+        print "Total cluster area: " + str(totalClustersArea)
+
 
 
 
@@ -435,7 +443,6 @@ if __name__ == "__main__":
     maxPos = 0
 
     for gate in design.gates:
-        print gate.getArea()
         position = int(imgW * ((gate.y / design.height) * imgH) + ((gate.x / design.width) * imgW))
         # print "------"
         # print design.height
