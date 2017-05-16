@@ -185,7 +185,7 @@ class Design:
 
     def clusterize(self):
         # Amount of clusters wished
-        clustersTarget = 500
+        clustersTarget = 10000
 
         # The first, naive, implementation is to extract clusters from the design with the same aspect ratio.
         # The area of each cluster is the area of the design divided by the amount of clusters.
@@ -200,7 +200,7 @@ class Design:
         originX = 0
         originY = 0
         count = 0
-        # clusters = []
+        # clusters = []
         while not full:
             if originY >= self.height:
                 full = True
@@ -221,7 +221,7 @@ class Design:
                 # print "new cluster origin: (" + str(originX) + ", " + str(originY) + ")"
 
                 # TODO change the cluster.origin into some sort of point object.
-                clusters.append(Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY]), count)
+                self.clusters.append(Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY], count))
                 # print newClusterWidth*newClusterHeight
 
                 originX += newClusterWidth
@@ -233,7 +233,7 @@ class Design:
 
         # Check for overshoot, clusters outside of design space.
         totalClustersArea = 0
-        for cluster in clusters:
+        for cluster in self.clusters:
             totalClustersArea += cluster.width * cluster.height
             if cluster.origin[0] + cluster.width > self.width:
                 print "WARNING: cluster width out of design bounds."
@@ -253,7 +253,7 @@ class Design:
         """
 
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
-        for cluster in clusters:
+        for cluster in self.clusters:
             i = 0
 
             for key in self.gates:
@@ -266,6 +266,30 @@ class Design:
 
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
 
+
+
+
+    def clusterConnectivity(self):
+        """
+        Find out what is the inter-cluster connectivity.
+        """
+
+        print "Establish connectivity"
+        connectivity = dict() # Key: source cluster, values: destination clusters
+        for cluster in self.clusters:
+            connectivity[cluster.id] = []
+            print "Source cluster: " + str(cluster.id)
+            for key in cluster.gates:
+                gateName = cluster.gates[key].name
+                for net in self.nets:
+                    for subkey in net.gates:
+                        subgateName = net.gates[subkey].name
+                        # Find to which cluster it belongs
+                        for subcluster in self.clusters:
+                            if subcluster.id != cluster.id:
+                                if subcluster.gates.get(subgateName) != None:
+                                    connectivity[cluster.id].append(subcluster.id)
+                                    # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
 
 
 
@@ -456,6 +480,7 @@ if __name__ == "__main__":
     print design.width * design.height
 
     design.clusterize()
+    design.clusterConnectivity()
 
 
 
