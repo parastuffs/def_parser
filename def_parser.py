@@ -253,19 +253,24 @@ class Design:
         """
 
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
+        gateKeys = self.gates.keys() # Dump keys from the gates dictionary
         for cluster in self.clusters:
             i = 0
+            gateKeysNotPlaced = [] # Keys of the gates that have not be placed into a cluster yet.
 
-            for key in self.gates:
+            for key in gateKeys:
                 # Check if the gate coordinates are below the top right corner of the cluster
                 # and above the bottom left corner.
                 if self.gates[key].x < (cluster.origin[0] + cluster.width) and self.gates[key].y < (cluster.origin[1] + cluster.height) and self.gates[key].x > cluster.origin[0] and self.gates[key].y > cluster.origin[1]:
                     cluster.addGate(self.gates[key])
+                else:
+                    gateKeysNotPlaced.append(key)
+
+            gateKeys = list(gateKeysNotPlaced) # Replace the key list with only the keys to the gates that have not been placed.
 
             checkClusterGates += len(cluster.gates)
 
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
-
 
 
 
@@ -480,7 +485,7 @@ if __name__ == "__main__":
     print design.width * design.height
 
     design.clusterize()
-    design.clusterConnectivity()
+    # design.clusterConnectivity()
 
 
 
