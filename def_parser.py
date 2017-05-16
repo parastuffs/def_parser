@@ -281,6 +281,11 @@ class Design:
         Find out what is the inter-cluster connectivity.
         """
 
+        RAW_INTERCONNECTIONS = True # If True, we don't care to which clusters a cluster is connected.
+                                    # All we care about is that it's establishing an inter-cluster connection.
+                                    # In that case, all clusters are connected to a cluster "0" which corresponds to none cluster ID (they begin at 1).
+                                    # If this is true, we go from an O(n^2) algo (loop twice on all clusters) to a O(n).
+
         print "Establish connectivity"
         connectivity = dict() # Key: source cluster, values: destination clusters
         for cluster in self.clusters:
@@ -292,12 +297,18 @@ class Design:
                     net = cluster.gates[key].nets[netKey]
                     for subkey in net.gates:
                         subgateName = net.gates[subkey].name
-                        # Find to which cluster it belongs
-                        for subcluster in self.clusters:
-                            if subcluster.id != cluster.id:
-                                if subcluster.gates.get(subgateName) != None:
-                                    connectivity[cluster.id].append(subcluster.id)
-                                    # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
+                        if RAW_INTERCONNECTIONS:
+                            # Simply check that the gate selected is not in the same cluster.
+                            if cluster.gates.get(subgateName) == None:
+                                connectivity[cluster.id].append(0)
+
+                        else:
+                            # Find to which cluster it belongs
+                            for subcluster in self.clusters:
+                                if subcluster.id != cluster.id:
+                                    if subcluster.gates.get(subgateName) != None:
+                                        connectivity[cluster.id].append(subcluster.id)
+                                        # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
 
 
 
