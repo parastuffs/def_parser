@@ -288,7 +288,8 @@ class Design:
             print "Source cluster: " + str(cluster.id)
             for key in cluster.gates:
                 gateName = cluster.gates[key].name
-                for net in self.nets:
+                for netKey in cluster.gates[key].nets:
+                    net = cluster.gates[key].nets[netKey]
                     for subkey in net.gates:
                         subgateName = net.gates[subkey].name
                         # Find to which cluster it belongs
@@ -298,6 +299,22 @@ class Design:
                                     connectivity[cluster.id].append(subcluster.id)
                                     # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
 
+
+
+
+        """
+        This a very primitive connectivity metric.
+        So far, we only compute the total amount of connections between two clusters.
+        This means that a same net could be counted multiples times as long as it connects different gates.
+        """
+        print "Estimating inter-cluster connectivity and exporting it to file inter_cluster_connectivity.csv"
+        s = ""
+        for key in connectivity:
+            s += str(key) + "," + str(len(connectivity[key]))
+            s += "\n"
+        print s
+        with open("inter_cluster_connectivity.csv", 'w') as file:
+            file.write(s)
 
 
 
@@ -491,7 +508,7 @@ if __name__ == "__main__":
     print design.width * design.height
 
     design.clusterize()
-    # design.clusterConnectivity()
+    design.clusterConnectivity()
 
 
 
