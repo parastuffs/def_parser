@@ -13,6 +13,7 @@ class Design:
         self.area = 0
         self.width = 0
         self.height = 0
+        self.clusters = [] # List of cluster objects
 
     def Digest(self):
         print "Design digest:"
@@ -199,7 +200,7 @@ class Design:
         originX = 0
         originY = 0
         count = 0
-        clusters = []
+        # clusters = []
         while not full:
             if originY >= self.height:
                 full = True
@@ -220,7 +221,7 @@ class Design:
                 # print "new cluster origin: (" + str(originX) + ", " + str(originY) + ")"
 
                 # TODO change the cluster.origin into some sort of point object.
-                clusters.append(Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY]))
+                clusters.append(Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY]), count)
                 # print newClusterWidth*newClusterHeight
 
                 originX += newClusterWidth
@@ -264,8 +265,6 @@ class Design:
             checkClusterGates += len(cluster.gates)
 
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
-
-
 
 
 
@@ -366,10 +365,11 @@ class Pin:
 
 
 class Cluster:
-    def __init__(self, width, height, area, origin):
+    def __init__(self, width, height, area, origin, identifier):
         '''
         origin is an array of two coordinates: (x, y)
         '''
+        self.id = identifier
         self.area = area
         self.width = width
         self.height = height
