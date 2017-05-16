@@ -171,7 +171,9 @@ class Design:
                                 elif len(gateBlockSplit) > 1:
                                     # This is a gate, add its name to the net
                                     # '1' because we have {(, <gate_name>, <gate_port>}
-                                    net.addGate(self.gates.get(gateBlockSplit[1]))
+                                    gate = self.gates.get(gateBlockSplit[1])
+                                    net.addGate(gate)
+                                    gate.addNet(net)
 
                             gatesLine = f.readline().strip("\n")
 
@@ -352,6 +354,7 @@ class Gate:
         self.width = 0
         self.height = 0
         self.stdCell = ""
+        self.nets = dict() # key: net name, value: Net object
 
     def setX(self, x):
         self.x = x
@@ -376,6 +379,9 @@ class Gate:
 
     def getArea(self):
         return self.width * self.height
+
+    def addNet(self, net):
+        self.nets[net.name] = net
 
 class Pin:
     def __init__(self, name):
