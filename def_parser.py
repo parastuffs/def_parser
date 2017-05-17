@@ -5,6 +5,11 @@ import copy
 
 macros = dict() # Filled inside extractStdCells()
 
+# Amount of clusters wished
+clustersTarget = 64
+# Actual amount of clusters
+clustersTotal = 0
+
 class Design:
     def __init__(self):
         self.nets = []        # List of Net objects
@@ -186,8 +191,8 @@ class Design:
 
 
     def clusterize(self):
-        # Amount of clusters wished
-        clustersTarget = 10000
+        global clustersTotal
+
 
         # The first, naive, implementation is to extract clusters from the design with the same aspect ratio.
         # The area of each cluster is the area of the design divided by the amount of clusters.
@@ -232,6 +237,7 @@ class Design:
                     originY += newClusterHeight
 
         print "Total cluster created: " + str(count)
+        clustersTotal = count
 
         # Check for overshoot, clusters outside of design space.
         totalClustersArea = 0
@@ -281,13 +287,17 @@ class Design:
         Find out what is the inter-cluster connectivity.
         """
 
-        RAW_INTERCONNECTIONS = True # If True, we don't care to which clusters a cluster is connected.
+        RAW_INTERCONNECTIONS = False # If True, we don't care to which clusters a cluster is connected.
                                     # All we care about is that it's establishing an inter-cluster connection.
                                     # In that case, all clusters are connected to a cluster "0" which corresponds to none cluster ID (they begin at 1).
                                     # If this is true, we go from an O(n^2) algo (loop twice on all clusters) to a O(n).
 
         print "Establish connectivity"
         connectivity = dict() # Key: source cluster, values: destination clusters
+
+        # In this matrix, a 0 means no connection.
+        conMatrix = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
+        
         for cluster in self.clusters:
             connectivity[cluster.id] = []
             print "Source cluster: " + str(cluster.id)
@@ -308,6 +318,7 @@ class Design:
                                 if subcluster.id != cluster.id:
                                     if subcluster.gates.get(subgateName) != None:
                                         connectivity[cluster.id].append(subcluster.id)
+                                        conMatrix[cluster.id-1][subcluster.id-1] += 1
                                         # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
 
 
@@ -325,6 +336,37 @@ class Design:
             s += "\n"
         print s
         with open("inter_cluster_connectivity.csv", 'w') as file:
+            file.write(s)
+
+
+
+        print "Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix.csv"
+        """
+        I want a matrix looking like
+
+          1 2 3 4
+        1 0 8 9 0
+        2 4 0 4 2
+        3 5 1 0 3
+        4 1 4 2 0
+
+        with the first row and first column being the cluster index, and the inside of the matrix the amount of connections
+        going from the cluster on the column to the cluster on the row (e.g. 8 connections go from 1 to 2 and 4 go from 4 to 1).
+        """
+        s = ""
+
+        # First row
+        for i in range(clustersTotal):
+            s += "," + str(i)
+        s += "\n"
+
+        for i in range(clustersTotal):
+            s += str(i) # First column
+            for j in range(clustersTotal):
+                s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+            s += "\n"
+        print s
+        with open("inter_cluster_connectivity_matrix.csv", 'w') as file:
             file.write(s)
 
 
