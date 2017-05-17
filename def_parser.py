@@ -270,7 +270,7 @@ class Design:
             for key in gateKeys:
                 # Check if the gate coordinates are below the top right corner of the cluster
                 # and above the bottom left corner.
-                if self.gates[key].x < (cluster.origin[0] + cluster.width) and self.gates[key].y < (cluster.origin[1] + cluster.height) and self.gates[key].x > cluster.origin[0] and self.gates[key].y > cluster.origin[1]:
+                if self.gates[key].x <= (cluster.origin[0] + cluster.width) and self.gates[key].y <= (cluster.origin[1] + cluster.height) and self.gates[key].x >= cluster.origin[0] and self.gates[key].y >= cluster.origin[1]:
                     cluster.addGate(self.gates[key])
                 else:
                     gateKeysNotPlaced.append(key)
