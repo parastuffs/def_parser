@@ -7,7 +7,7 @@ from sets import Set
 macros = dict() # Filled inside extractStdCells()
 
 # Amount of clusters wished
-clustersTarget = 64
+clustersTarget = 10000
 # Actual amount of clusters
 clustersTotal = 0
 
@@ -243,6 +243,7 @@ class Design:
         # Check for overshoot, clusters outside of design space.
         totalClustersArea = 0
         for cluster in self.clusters:
+            # print str(cluster.id) + ", " + str(cluster.origin) + ", width: " + str(cluster.width) + ", height: " + str(cluster.height)
             totalClustersArea += cluster.width * cluster.height
             if cluster.origin[0] + cluster.width > self.width:
                 print "WARNING: cluster width out of design bounds."
@@ -272,6 +273,9 @@ class Design:
                 # and above the bottom left corner.
                 if self.gates[key].x <= (cluster.origin[0] + cluster.width) and self.gates[key].y <= (cluster.origin[1] + cluster.height) and self.gates[key].x >= cluster.origin[0] and self.gates[key].y >= cluster.origin[1]:
                     cluster.addGate(self.gates[key])
+                    # Also add a reference to the cluster inside the Gate object.
+                    # This will be useful for the connectivity loop and reducing its time complexity.
+                    self.gates[key].addCluster(cluster)
                 else:
                     gateKeysNotPlaced.append(key)
 
@@ -288,7 +292,7 @@ class Design:
         Find out what is the inter-cluster connectivity.
         """
 
-        RAW_INTERCONNECTIONS = True # If True, we don't care to which clusters a cluster is connected.
+        RAW_INTERCONNECTIONS = False  # If True, we don't care to which clusters a cluster is connected.
                                     # All we care about is that it's establishing an inter-cluster connection.
                                     # In that case, all clusters are connected to a cluster "0" which corresponds to none cluster ID (they begin at 1).
                                     # If this is true, we go from an O(n^2) algo (loop twice on all clusters) to a O(n).
@@ -299,6 +303,7 @@ class Design:
 
         # In this matrix, a 0 means no connection.
         conMatrix = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
+        conMatrixUniqueNet = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
         
         clusterNetSet = dict() # Dictionary of sets.
 
@@ -323,19 +328,16 @@ class Design:
                                     connectivityUniqueNet[cluster.id].append(0)
 
                         else:
-                            # Find to which cluster the foreign gate belongs
-                            for subcluster in self.clusters:
-                                if subcluster.id != cluster.id:
-                                    if subcluster.gates.get(subgateName) != None:
-                                        connectivity[cluster.id].append(subcluster.id)
-                                        conMatrix[cluster.id-1][subcluster.id-1] += 1
-                                          # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
+                            if net.gates[subkey].cluster.id != cluster.id:
+                                if net.gates[subkey].cluster.gates.get(subgateName) != None:
+                                        connectivity[cluster.id].append(net.gates[subkey].cluster.id)
+                                        conMatrix[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
                                         if netKey not in clusterNetSet[cluster.id]:
-                                            clusterNetSet.add(netKey)
-                                            connectivityUniqueNet[cluster.id].append(subcluster.id)
+                                            clusterNetSet[cluster.id].add(netKey)
+                                            connectivityUniqueNet[cluster.id].append(net.gates[subkey].cluster.id)
+                                            conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
 
 
-        # TODO add a cluster field in the Gate object. It will be filled during clusterization.
 
         """
         This a very primitive connectivity metric.
@@ -353,34 +355,52 @@ class Design:
 
 
 
-        print "Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix.csv"
-        """
-        I want a matrix looking like
+        if not RAW_INTERCONNECTIONS:
+            print "Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix.csv"
+            """
+            I want a matrix looking like
 
-          1 2 3 4
-        1 0 8 9 0
-        2 4 0 4 2
-        3 5 1 0 3
-        4 1 4 2 0
+              1 2 3 4
+            1 0 8 9 0
+            2 4 0 4 2
+            3 5 1 0 3
+            4 1 4 2 0
 
-        with the first row and first column being the cluster index, and the inside of the matrix the amount of connections
-        going from the cluster on the column to the cluster on the row (e.g. 8 connections go from 1 to 2 and 4 go from 4 to 1).
-        """
-        s = ""
+            with the first row and first column being the cluster index, and the inside of the matrix the amount of connections
+            going from the cluster on the column to the cluster on the row (e.g. 8 connections go from 1 to 2 and 4 go from 4 to 1).
+            """
+            s = ""
 
-        # First row
-        for i in range(clustersTotal):
-            s += "," + str(i)
-        s += "\n"
-
-        for i in range(clustersTotal):
-            s += str(i) # First column
-            for j in range(clustersTotal):
-                s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+            # First row
+            for i in range(clustersTotal):
+                s += "," + str(i)
             s += "\n"
-        print s
-        with open("inter_cluster_connectivity_matrix.csv", 'w') as file:
-            file.write(s)
+
+            for i in range(clustersTotal):
+                s += str(i) # First column
+                for j in range(clustersTotal):
+                    s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+                s += "\n"
+            print s
+            with open("inter_cluster_connectivity_matrix.csv", 'w') as file:
+                file.write(s)
+
+
+            s = ""
+
+            # First row
+            for i in range(clustersTotal):
+                s += "," + str(i)
+            s += "\n"
+
+            for i in range(clustersTotal):
+                s += str(i) # First column
+                for j in range(clustersTotal):
+                    s+= "," + str(conMatrixUniqueNet[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+                s += "\n"
+            print s
+            with open("inter_cluster_connectivity_matrix_unique_net.csv", 'w') as file:
+                file.write(s)
 
 
 
@@ -448,6 +468,7 @@ class Gate:
         self.height = 0
         self.stdCell = ""
         self.nets = dict() # key: net name, value: Net object
+        self.cluster = None # Cluster object
 
     def setX(self, x):
         self.x = x
@@ -475,6 +496,12 @@ class Gate:
 
     def addNet(self, net):
         self.nets[net.name] = net
+
+    def addCluster(self, cluster):
+        """
+        cluster: Cluster object
+        """
+        self.cluster = cluster
 
 class Pin:
     def __init__(self, name):
