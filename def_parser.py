@@ -2,6 +2,7 @@ from __future__ import division # http://stackoverflow.com/questions/1267869/how
 from PIL import Image
 from math import *
 import copy
+from sets import Set
 
 macros = dict() # Filled inside extractStdCells()
 
@@ -287,19 +288,24 @@ class Design:
         Find out what is the inter-cluster connectivity.
         """
 
-        RAW_INTERCONNECTIONS = False # If True, we don't care to which clusters a cluster is connected.
+        RAW_INTERCONNECTIONS = True # If True, we don't care to which clusters a cluster is connected.
                                     # All we care about is that it's establishing an inter-cluster connection.
                                     # In that case, all clusters are connected to a cluster "0" which corresponds to none cluster ID (they begin at 1).
                                     # If this is true, we go from an O(n^2) algo (loop twice on all clusters) to a O(n).
 
         print "Establish connectivity"
         connectivity = dict() # Key: source cluster, values: destination clusters
+        connectivityUniqueNet = dict() # Connectivity, but counting only once every net between clusters
 
         # In this matrix, a 0 means no connection.
         conMatrix = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
         
+        clusterNetSet = dict() # Dictionary of sets.
+
         for cluster in self.clusters:
             connectivity[cluster.id] = []
+            connectivityUniqueNet[cluster.id] = []
+            clusterNetSet[cluster.id] = Set()
             print "Source cluster: " + str(cluster.id)
             for key in cluster.gates:
                 gateName = cluster.gates[key].name
@@ -311,18 +317,25 @@ class Design:
                             # Simply check that the gate selected is not in the same cluster.
                             if cluster.gates.get(subgateName) == None:
                                 connectivity[cluster.id].append(0)
+                                if netKey not in clusterNetSet[cluster.id]:
+                                    # If the net is not yet registered in the cluster, add it.
+                                    clusterNetSet[cluster.id].add(netKey)
+                                    connectivityUniqueNet[cluster.id].append(0)
 
                         else:
-                            # Find to which cluster it belongs
+                            # Find to which cluster the foreign gate belongs
                             for subcluster in self.clusters:
                                 if subcluster.id != cluster.id:
                                     if subcluster.gates.get(subgateName) != None:
                                         connectivity[cluster.id].append(subcluster.id)
                                         conMatrix[cluster.id-1][subcluster.id-1] += 1
-                                        # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
+                                          # print "cluster " + str(cluster.id) + " is connected to cluster " + str(subcluster.id)
+                                        if netKey not in clusterNetSet[cluster.id]:
+                                            clusterNetSet.add(netKey)
+                                            connectivityUniqueNet[cluster.id].append(subcluster.id)
 
 
-
+        # TODO add a cluster field in the Gate object. It will be filled during clusterization.
 
         """
         This a very primitive connectivity metric.
@@ -369,6 +382,16 @@ class Design:
         with open("inter_cluster_connectivity_matrix.csv", 'w') as file:
             file.write(s)
 
+
+
+        print "Processing inter-cluster connectivity without duplicate nets, exporting to inter_cluster_connectivity_unique_nets.csv."
+        s = ""
+        for key in connectivityUniqueNet:
+            s += str(key) + "," + str(len(connectivityUniqueNet[key]))
+            s += "\n"
+        print s
+        with open("inter_cluster_connectivity_unique_nets.csv", 'w') as file:
+            file.write(s)
 
 
 
