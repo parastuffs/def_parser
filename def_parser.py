@@ -7,7 +7,7 @@ from sets import Set
 macros = dict() # Filled inside extractStdCells()
 
 # Amount of clusters wished
-clustersTarget = 10000
+clustersTarget = 25
 # Actual amount of clusters
 clustersTotal = 0
 
@@ -344,19 +344,19 @@ class Design:
         So far, we only compute the total amount of connections between two clusters.
         This means that a same net could be counted multiples times as long as it connects different gates.
         """
-        print "Estimating inter-cluster connectivity and exporting it to file inter_cluster_connectivity.csv"
+        print "Estimating inter-cluster connectivity and exporting it to file inter_cluster_connectivity_" + str(clustersTotal) + ".csv"
         s = ""
         for key in connectivity:
             s += str(key) + "," + str(len(connectivity[key]))
             s += "\n"
         print s
-        with open("inter_cluster_connectivity.csv", 'w') as file:
+        with open("inter_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
             file.write(s)
 
 
 
         if not RAW_INTERCONNECTIONS:
-            print "Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix.csv"
+            print "Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv"
             """
             I want a matrix looking like
 
@@ -382,7 +382,7 @@ class Design:
                     s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
                 s += "\n"
             print s
-            with open("inter_cluster_connectivity_matrix.csv", 'w') as file:
+            with open("inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv", 'w') as file:
                 file.write(s)
 
 
@@ -399,18 +399,56 @@ class Design:
                     s+= "," + str(conMatrixUniqueNet[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
                 s += "\n"
             print s
-            with open("inter_cluster_connectivity_matrix_unique_net.csv", 'w') as file:
+            with open("inter_cluster_connectivity_matrix_unique_net_" + str(clustersTotal) + ".csv", 'w') as file:
                 file.write(s)
 
 
 
-        print "Processing inter-cluster connectivity without duplicate nets, exporting to inter_cluster_connectivity_unique_nets.csv."
+        print "Processing inter-cluster connectivity without duplicate nets, exporting to inter_cluster_connectivity_unique_nets_" + str(clustersTotal) + ".csv."
         s = ""
         for key in connectivityUniqueNet:
             s += str(key) + "," + str(len(connectivityUniqueNet[key]))
             s += "\n"
         print s
-        with open("inter_cluster_connectivity_unique_nets.csv", 'w') as file:
+        with open("inter_cluster_connectivity_unique_nets_" + str(clustersTotal) + ".csv", 'w') as file:
+            file.write(s)
+
+
+
+
+
+        """
+        Intra-cluster connectivity
+        """
+        print "Computin intra-cluster connectivity"
+        connectivityIntra = dict()
+        # Dictionary init
+        for cluster in self.clusters:
+            connectivityIntra[cluster.id] = []
+
+
+        for net in self.nets:
+            clusterID = -1 # Begin with '-1' to mark the fact that we are looking at the first gate of the net.
+            discardNet = False
+            for key in net.gates:
+                if net.gates[key] != clusterID and clusterID != -1:
+                    # this gate is not in the same cluster as the previous one. Discard the net.
+                    discardNet = True
+                    # TODO break the loop net.gates here
+                else:
+                    clusterID = net.gates[key].cluster.id
+            if not discardNet:
+                connectivityIntra[clusterID].append(net.name)
+
+
+
+        print "Processing intra-cluster connectivity, exporting to intra_cluster_connectivity_" + str(clustersTotal) + ".csv."
+        s = ""
+        for key in connectivityIntra:
+            s += str(key) + "," + str(len(connectivityIntra[key]))
+            s += "\n"
+        print s
+        with open("intra_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
             file.write(s)
 
 
