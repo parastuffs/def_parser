@@ -105,6 +105,16 @@ class Design:
                 elif 'COMPONENTS' in line:
                     inComponents = True
 
+        """
+        Compute the total surface of all the gates.
+        """
+        totArea = 0
+        for key in self.gates:
+            totArea += self.gates[key].getArea()
+        print "Total area of the gates: " + str(totArea)
+        exit()
+
+
     def extractPins(self):
         print "Reading the def to extract pins."
 
@@ -420,7 +430,7 @@ class Design:
         """
         Intra-cluster connectivity
         """
-        print "Computin intra-cluster connectivity"
+        print "Computing intra-cluster connectivity"
         connectivityIntra = dict()
         # Dictionary init
         for cluster in self.clusters:
