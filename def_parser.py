@@ -37,8 +37,8 @@ class Design:
             for line in f: # Read the file sequentially
                 if 'DIEAREA' in line:
                     area = line.split(' ')
-                    self.setWidth(int(area[6]))
-                    self.setHeight(int(area[7]))
+                    self.setWidth(int(area[6])/10000)
+                    self.setHeight(int(area[7])/10000)
                     self.setArea()
 
     def ExtractCells(self):
@@ -75,20 +75,20 @@ class Design:
                         # TODO: Is there a way to search the index for two words?
                         # Like index("PLACED" | "FIXED')
                         try:
-                            gate.setX(int(split[split.index("PLACED") + 2]))
+                            gate.setX(int(split[split.index("PLACED") + 2])/10000)
                         except:
                             try:
-                                gate.setX(int(split[split.index("FIXED") + 2]))
+                                gate.setX(int(split[split.index("FIXED") + 2])/10000)
                             except:
                                 # If this raises an exception, it probably means
                                 # we reached the 'END COMPONENTS'
                                 pass
 
                         try:
-                            gate.setY(int(split[split.index("PLACED") + 3]))
+                            gate.setY(int(split[split.index("PLACED") + 3])/10000)
                         except:
                             try:
-                                gate.setY(int(split[split.index("FIXED") + 3]))
+                                gate.setY(int(split[split.index("FIXED") + 3])/10000)
                             except:
                                 pass
                             else:
@@ -112,7 +112,7 @@ class Design:
         for key in self.gates:
             totArea += self.gates[key].getArea()
         print "Total area of the gates: " + str(totArea)
-        exit()
+        # exit()
 
 
     def extractPins(self):
@@ -142,8 +142,8 @@ class Design:
                         nextLine = f.readline()
 
                     # Now we are at the 'PLACED' line
-                    pin.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2]))
-                    pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3]))
+                    pin.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2])/10000)
+                    pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/10000)
 
                     self.addPin(pin)
 
