@@ -9,7 +9,7 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 macros = dict() # Filled inside extractStdCells()
 
 # Amount of clusters wished
-clustersTarget = 25
+clustersTarget = 1000
 # Actual amount of clusters
 clustersTotal = 0
 
@@ -23,6 +23,7 @@ class Design:
         self.height = 0
         self.clusters = [] # List of cluster objects
         self.totalWireLength = 0
+        self.totalInterClusterWL = 0
 
     def Digest(self):
         print "Design digest:"
@@ -240,8 +241,6 @@ class Design:
                                 # TODO Ternary expressions?
                                 # TODO WEIGHT? cf net clock
                                 netLength += (y2 - y1) + (x2 - x1)
-                                # print netLength
-                                # TODO total wirelength
 
 
                             netDetails = f.readline().strip()
@@ -374,6 +373,8 @@ class Design:
         
         clusterNetSet = dict() # Dictionary of sets.
 
+        spaningNetsUnique = dict() # This dicitonary contains all the nets that span over more than one cluster. The difference with the other dictionaries is that this one contains each net only once. This will be used to compute the total inter-cluster wirelength.
+
         for cluster in self.clusters:
             connectivity[cluster.id] = []
             connectivityUniqueNet[cluster.id] = []
@@ -393,6 +394,9 @@ class Design:
                                     # If the net is not yet registered in the cluster, add it.
                                     clusterNetSet[cluster.id].add(netKey)
                                     connectivityUniqueNet[cluster.id].append(0)
+                                    if spaningNetsUnique.get(netKey) == None:
+                                        # If the net is not registered as spaning over several clusters, add it.
+                                        spaningNetsUnique[netKey] = net
 
                         else:
                             if net.gates[subkey].cluster.id != cluster.id:
@@ -403,6 +407,9 @@ class Design:
                                             clusterNetSet[cluster.id].add(netKey)
                                             connectivityUniqueNet[cluster.id].append(net.gates[subkey].cluster.id)
                                             conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                            if spaningNetsUnique.get(netKey) == None:
+                                                # If the net is not registered as spaning over several clusters, add it.
+                                                spaningNetsUnique[netKey] = net
 
 
 
@@ -517,6 +524,14 @@ class Design:
         print s
         with open("intra_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
             file.write(s)
+
+
+
+
+        for key in spaningNetsUnique:
+            self.totalInterClusterWL += spaningNetsUnique[key].wl
+        print "Total inter-cluster wirelength: " + locale.format("%d", self.totalInterClusterWL, grouping=True) + ", which is " + str(self.totalInterClusterWL*100/self.totalWireLength) + "% of the total wirelength."
+        print "Inter-cluster nets: " + str(len(spaningNetsUnique)) + ", which is " + str(len(spaningNetsUnique) * 100 / len(self.nets)) + "% of the total amount of nets."
 
 
 
