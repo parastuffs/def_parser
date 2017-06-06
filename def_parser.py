@@ -3,6 +3,8 @@ from PIL import Image
 from math import *
 import copy
 from sets import Set
+import locale
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 macros = dict() # Filled inside extractStdCells()
 
@@ -20,6 +22,7 @@ class Design:
         self.width = 0
         self.height = 0
         self.clusters = [] # List of cluster objects
+        self.totalWireLength = 0
 
     def Digest(self):
         print "Design digest:"
@@ -27,6 +30,7 @@ class Design:
         print "Height: " + str(self.height)
         print "Aspect ratio: " + str(self.width/self.height)
         print "Nets: " + str(len(self.nets))
+        print "Total wirelength: " + locale.format("%d", self.totalWireLength, grouping=True)
         print "Gates: " + str(len(self.gates))
 
 
@@ -174,9 +178,9 @@ class Design:
                         net = Net(line.split(' ')[1])
                         # Read the next line after the net name,
                         # it should contain the connected cells names.
-                        gatesLine = f.readline()
-                        while not 'ROUTED' in gatesLine:
-                            split = gatesLine.split(')') # Split the line so that each element is only one pin or gate
+                        netDetails = f.readline()
+                        while not 'ROUTED' in netDetails:
+                            split = netDetails.split(')') # Split the line so that each element is only one pin or gate
                             for gateBlock in split:
                                 gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
 
@@ -191,7 +195,60 @@ class Design:
                                     net.addGate(gate)
                                     gate.addNet(net)
 
-                            gatesLine = f.readline().strip("\n")
+                            netDetails = f.readline().strip()
+                            netLength = 0
+
+                        while not ';' in netDetails:
+                            # Now, we are looking at the detailed route of the net.
+                            # It ends with a single ';' alone on its own line.
+                            # On each line, we have:
+                            # NEW <routing layer> ( x1 y1 ) ( x2 y2 ) [via(optional]
+                            # x2 or y2 can be replaced with '*', meaning the same x1 or y2 is to be used.
+                            # 
+                            # The only exception should be the first line, which begins with 'ROUTED'
+
+
+
+                            if not 'SOURCE' in netDetails and not 'USE' in netDetails and not 'WEIGHT' in netDetails:
+                                # Skip the lines containing those taboo words.
+                                netDetailsSplit = netDetails.split(' ')
+                                baseIndex = 0 # baseIndex to be shifted in case the line begins with 'ROUTED's
+                                if 'ROUTED' in netDetails:
+                                    # First line begins with '+ ROUTED', subsequent ones don't.
+                                    # Beware the next lines begin with 'NEW'
+                                    baseIndex += 1
+                                # print netDetailsSplit
+                                x1 = int(netDetailsSplit[baseIndex+3])
+                                y1 = int(netDetailsSplit[baseIndex+4])
+                                if netDetailsSplit[baseIndex+6] == '(':
+                                    # Some lines only have one set of coordinates (to place a via)
+                                    x2 = netDetailsSplit[baseIndex+7]
+                                    y2 = netDetailsSplit[baseIndex+8]
+                                else:
+                                    x2 = x1
+                                    y2 = y1
+                                    # print netDetailsSplit
+                                # TODO What is the third number we sometimes have in the second coordinates bracket?
+                                if x2 == "*":
+                                    x2 = int(x1)
+                                else:
+                                    x2 = int(x2)
+                                if y2 == "*":
+                                    y2 = int(y1)
+                                else:
+                                    y2 = int(y2)
+                                # TODO Ternary expressions?
+                                # TODO WEIGHT? cf net clock
+                                netLength += (y2 - y1) + (x2 - x1)
+                                # print netLength
+                                # TODO total wirelength
+
+
+                            netDetails = f.readline().strip()
+                        netLength = netLength / 10000 # 10^-4um to um
+                        net.setLength(netLength)
+                        self.totalWireLength += netLength
+                        # print net.name + ": " + str(netLength)
 
                         self.addNet(net)
                     # end if
@@ -506,6 +563,12 @@ class Net:
         pin as Pin object
         """
         self.pins[pin.name] = pin
+
+    def setLength(self, length):
+        """
+        Total wire length, int.
+        """
+        self.wl = length
 
 class Gate:
     def __init__(self, name):
