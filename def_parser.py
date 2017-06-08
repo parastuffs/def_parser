@@ -13,6 +13,67 @@ clustersTarget = 1000
 # Actual amount of clusters
 clustersTotal = 0
 
+
+
+
+ #######     #####    ########   ##########  
+##     ##  ##     ##  ##     ##      ##      
+##         ##     ##  ##     ##      ##      
+ #######   ##     ##  ########       ##      
+       ##  ##     ##  ##   ##        ##      
+##     ##  ##     ##  ##    ##       ##      
+ #######     #####    ##     ##      ## 
+
+# http://www.geeksforgeeks.org/heap-sort/
+# This code is contributed by Mohit Kumra
+# To heapify subtree rooted at index i.
+# n is size of heap
+def heapify(arr, n, i, cloneArr):
+    largest = i  # Initialize largest as root
+    l = 2 * i + 1     # left = 2*i + 1
+    r = 2 * i + 2     # right = 2*i + 2
+ 
+    # See if left child of root exists and is
+    # greater than root
+    if l < n and arr[i] < arr[l]:
+        largest = l
+ 
+    # See if right child of root exists and is
+    # greater than root
+    if r < n and arr[largest] < arr[r]:
+        largest = r
+ 
+    # Change root, if needed
+    if largest != i:
+        arr[i],arr[largest] = arr[largest],arr[i]  # swap
+        cloneArr[i], cloneArr[largest] = cloneArr[largest], cloneArr[i]
+ 
+        # Heapify the root.
+        heapify(arr, n, largest, cloneArr)
+ 
+# The main function to sort an array of given size
+def heapSort(arr, cloneArr):
+    """
+    arr is the array containing the nets length.
+    cloneArr is the array containing the nets name.
+    The sorting is done on arr, but every moving operation has
+    to be applied on cloneArr as well. This way, we can keep
+    a one to one relationship between the net name and its length.
+    """
+    n = len(arr)
+ 
+    # Build a maxheap.
+    for i in range(n, -1, -1):
+        heapify(arr, n, i, cloneArr)
+ 
+    # One by one extract elements
+    for i in range(n-1, 0, -1):
+        arr[i], arr[0] = arr[0], arr[i]   # swap
+        cloneArr[i], cloneArr[0] = cloneArr[0], cloneArr[i]
+        heapify(arr, i, 0, cloneArr)
+
+
+
 class Design:
     def __init__(self):
         self.nets = []        # List of Net objects
@@ -255,6 +316,25 @@ class Design:
 
                 line = f.readline()
             # end while
+
+
+
+    def sortNets(self):
+        netLengths = []
+        netNames = []
+        for net in self.nets:
+            netLengths.append(net.wl)
+            netNames.append(net.name)
+
+        heapSort(netLengths, netNames)
+        print "Exporting net lengths to LDPC_net_wl.csv"
+        s = ""
+        for i in range(0, len(netLengths)):
+            s += str(netNames[i]) + " " + str(netLengths[i]) + "\n"
+        print s
+        with open("LDPC_net_wl.csv", 'w') as file:
+            file.write(s)
+
 
 
     def clusterize(self):
@@ -732,6 +812,7 @@ if __name__ == "__main__":
     # design.Digest()
 
     design.extractNets()
+    design.sortNets()
     design.Digest()
 
     print design.width * design.height
