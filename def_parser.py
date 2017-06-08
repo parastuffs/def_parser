@@ -328,9 +328,11 @@ class Design:
 
         heapSort(netLengths, netNames)
         print "Exporting net lengths to LDPC_net_wl.csv"
-        s = ""
+        s = "Net_name net_wire_length cumulated_wire_length"
+        cumulatedLength = 0
         for i in range(0, len(netLengths)):
-            s += str(netNames[i]) + " " + str(netLengths[i]) + "\n"
+            cumulatedLength += netLengths[i]
+            s += str(netNames[i]) + " " + str(netLengths[i]) + " " + str(cumulatedLength) + "\n"
         print s
         with open("LDPC_net_wl.csv", 'w') as file:
             file.write(s)
