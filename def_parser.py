@@ -9,7 +9,7 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 macros = dict() # Filled inside extractStdCells()
 
 # Amount of clusters wished
-clustersTarget = 1000
+clustersTarget = 100
 # Actual amount of clusters
 clustersTotal = 0
 
@@ -361,7 +361,7 @@ class Design:
         print s
         with open("LDPC_net_wl.csv", 'w') as file:
             file.write(s)
-        # TODO génération du graphe en Python
+        # TODO generation du graphe en Python
 
 
 
@@ -390,6 +390,7 @@ class Design:
         originX = 0
         originY = 0
         count = 0
+        clusterListStr = "" # Clusters names list to dump into 'clusters.out'
         # clusters = []
         while not full:
             if originY >= self.height:
@@ -411,8 +412,10 @@ class Design:
                 # print "new cluster origin: (" + str(originX) + ", " + str(originY) + ")"
 
                 # TODO change the cluster.origin into some sort of point object.
-                self.clusters.append(Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY], count))
+                newCluster = Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY], count)
+                self.clusters.append(newCluster)
                 # print newClusterWidth*newClusterHeight
+                clusterListStr += str(newCluster.id) + "\n"
 
                 originX += newClusterWidth
                 if originX >= self.width:
@@ -421,6 +424,11 @@ class Design:
 
         print "Total cluster created: " + str(count)
         clustersTotal = count
+
+        # TODO 'clusters.out' should be a paramater/argument/global variable?
+        print "Dumping clusters.out"
+        with open("clusters.out", 'w') as file:
+            file.write(clusterListStr)
 
         # Check for overshoot, clusters outside of design space.
         totalClustersArea = 0
