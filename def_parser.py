@@ -107,6 +107,15 @@ class Design:
                     self.setHeight(int(area[7])/10000)
                     self.setArea()
 
+
+    #########  ##    ##   ##########   #######   #########  ##         ##         
+    ##          ##  ##        ##      ##     ##  ##         ##         ##         
+    ##           ####         ##      ##         ##         ##         ##         
+    ######        ##          ##      ##         ######     ##         ##         
+    ##           ####         ##      ##         ##         ##         ##         
+    ##          ##  ##        ##      ##     ##  ##         ##         ##         
+    #########  ##    ##       ##       #######   #########  #########  #########  
+
     def ExtractCells(self):
         print "Reading the def to extract cells."
 
@@ -181,6 +190,14 @@ class Design:
         # exit()
 
 
+    #########  ##    ##   ##########  ########   ########   ##      ##   #######   
+    ##          ##  ##        ##      ##     ##     ##      ###     ##  ##     ##  
+    ##           ####         ##      ##     ##     ##      ## ##   ##  ##         
+    ######        ##          ##      #######       ##      ##  ##  ##   #######   
+    ##           ####         ##      ##            ##      ##   ## ##         ##  
+    ##          ##  ##        ##      ##            ##      ##     ###  ##     ##  
+    #########  ##    ##       ##      ##         ########   ##      ##   #######   
+
     def extractPins(self):
         print "Reading the def to extract pins."
 
@@ -215,6 +232,14 @@ class Design:
 
                 line = f.readline()
 
+
+    #########  ##    ##   ##########  ##      ##  #########  ##########   #######   
+    ##          ##  ##        ##      ###     ##  ##             ##      ##     ##  
+    ##           ####         ##      ## ##   ##  ##             ##      ##         
+    ######        ##          ##      ##  ##  ##  ######         ##       #######   
+    ##           ####         ##      ##   ## ##  ##             ##             ##  
+    ##          ##  ##        ##      ##     ###  ##             ##      ##     ##  
+    #########  ##    ##       ##      ##      ##  #########      ##       #######   
 
     def extractNets(self):
         print "Reading the def to extract nets."
@@ -328,16 +353,25 @@ class Design:
 
         heapSort(netLengths, netNames)
         print "Exporting net lengths to LDPC_net_wl.csv"
-        s = "Net_name net_wire_length cumulated_wire_length"
+        s = "Net_name net_wire_length cumulated_wire_length %_of_nets\n"
         cumulatedLength = 0
         for i in range(0, len(netLengths)):
             cumulatedLength += netLengths[i]
-            s += str(netNames[i]) + " " + str(netLengths[i]) + " " + str(cumulatedLength) + "\n"
+            s += str(netNames[i]) + " " + str(netLengths[i]) + " " + str(cumulatedLength) + " " + str((i+1)*100/len(netLengths)) + "\n"
         print s
         with open("LDPC_net_wl.csv", 'w') as file:
             file.write(s)
+        # TODO génération du graphe en Python
 
 
+
+     #######   ##         ##     ##   #######   ##########  #########  ########   
+    ##     ##  ##         ##     ##  ##     ##      ##      ##         ##     ##  
+    ##         ##         ##     ##  ##             ##      ##         ##     ##  
+    ##         ##         ##     ##   #######       ##      ######     ########   
+    ##         ##         ##     ##         ##      ##      ##         ##   ##    
+    ##     ##  ##         ##     ##  ##     ##      ##      ##         ##    ##   
+     #######   #########   #######    #######       ##      #########  ##     ##  
 
     def clusterize(self):
         global clustersTotal
@@ -434,6 +468,14 @@ class Design:
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
 
 
+
+     #######   ##         ##     ##   #######   ##########   #######     #####    ##      ##  
+    ##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ###     ##  
+    ##         ##         ##     ##  ##             ##      ##         ##     ##  ## ##   ##  
+    ##         ##         ##     ##   #######       ##      ##         ##     ##  ##  ##  ##  
+    ##         ##         ##     ##         ##      ##      ##         ##     ##  ##   ## ##  
+    ##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ##     ###  
+     #######   #########   #######    #######       ##       #######     #####    ##      ##  
 
     def clusterConnectivity(self):
         """
@@ -641,6 +683,17 @@ class Design:
     def getAspectRatio(self):
         return self.width/self.height
 
+
+
+        ##      ##  #########  ##########  
+        ###     ##  ##             ##      
+        ## ##   ##  ##             ##      
+        ##  ##  ##  ######         ##      
+        ##   ## ##  ##             ##      
+        ##     ###  ##             ##      
+####### ##      ##  #########      ##      
+    
+
 class Net:
     def __init__(self, name):
         self.name = name
@@ -666,6 +719,16 @@ class Net:
         Total wire length, int.
         """
         self.wl = length
+
+
+
+         #######      ###     ##########  #########  
+        ##           ## ##        ##      ##         
+        ##          ##   ##       ##      ##         
+        ##   ####  ##     ##      ##      ######     
+        ##     ##  #########      ##      ##         
+        ##     ##  ##     ##      ##      ##         
+####### ########   ##     ##      ##      #########
 
 class Gate:
     def __init__(self, name):
@@ -711,6 +774,17 @@ class Gate:
         """
         self.cluster = cluster
 
+
+
+
+        ########   ########   ##      ##  
+        ##     ##     ##      ###     ##  
+        ##     ##     ##      ## ##   ##  
+        #######       ##      ##  ##  ##  
+        ##            ##      ##   ## ##  
+        ##            ##      ##     ###  
+####### ##         ########   ##      ##  
+
 class Pin:
     def __init__(self, name):
         self.name = name
@@ -727,6 +801,15 @@ class Pin:
         print "Pin " + self.name + " at (" + str(self.x) + ", " + str(self.y) + ")"
 
 
+
+         #######   ##         ##     ##   #######   ##########  #########  ########   
+        ##     ##  ##         ##     ##  ##     ##      ##      ##         ##     ##  
+        ##         ##         ##     ##  ##             ##      ##         ##     ##  
+        ##         ##         ##     ##   #######       ##      ######     ########   
+        ##         ##         ##     ##         ##      ##      ##         ##   ##    
+        ##     ##  ##         ##     ##  ##     ##      ##      ##         ##    ##   
+#######  #######   #########   #######    #######       ##      #########  ##     ##  
+
 class Cluster:
     def __init__(self, width, height, area, origin, identifier):
         '''
@@ -742,6 +825,15 @@ class Cluster:
     def addGate(self, gate):
         self.gates[gate.name] = gate
 
+
+
+ #######   ##########  ######      #######   #########  ##         ##         
+##     ##      ##      ##    ##   ##     ##  ##         ##         ##         
+##             ##      ##     ##  ##         ##         ##         ##         
+ #######       ##      ##     ##  ##         ######     ##         ##         
+       ##      ##      ##     ##  ##         ##         ##         ##         
+##     ##      ##      ##    ##   ##     ##  ##         ##         ##         
+ #######       ##      ######      #######   #########  #########  #########  
 
 def extractStdCells():
     """
@@ -795,6 +887,17 @@ def extractStdCells():
 
 
 
+
+
+
+
+        ##       ##     ###     ########   ##      ##          
+        ###     ###    ## ##       ##      ###     ##          
+        ## ## ## ##   ##   ##      ##      ## ##   ##          
+        ##  ###  ##  ##     ##     ##      ##  ##  ##          
+        ##       ##  #########     ##      ##   ## ##          
+        ##       ##  ##     ##     ##      ##     ###          
+####### ##       ##  ##     ##  ########   ##      ##  ####### 
 
 
 if __name__ == "__main__":
