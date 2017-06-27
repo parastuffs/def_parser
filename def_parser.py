@@ -457,6 +457,7 @@ class Design:
         for cluster in self.clusters:
             i = 0
             gateKeysNotPlaced = [] # Keys of the gates that have not be placed into a cluster yet.
+            clusterGateArea = 0 # Cumulated area of the gates in the cluster
 
             for key in gateKeys:
                 # Check if the gate coordinates are below the top right corner of the cluster
@@ -466,12 +467,17 @@ class Design:
                     # Also add a reference to the cluster inside the Gate object.
                     # This will be useful for the connectivity loop and reducing its time complexity.
                     self.gates[key].addCluster(cluster)
+                    # Add the gate area to the total of the cluster:
+                    clusterGateArea += self.gates[key].getArea()
                 else:
                     gateKeysNotPlaced.append(key)
 
             gateKeys = list(gateKeysNotPlaced) # Replace the key list with only the keys to the gates that have not been placed.
 
             checkClusterGates += len(cluster.gates)
+
+            # Set the cluster 'gate area'
+            cluster.setGateArea(clusterGateArea)
 
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
 
@@ -507,10 +513,14 @@ class Design:
 
         spaningNetsUnique = dict() # This dicitonary contains all the nets that span over more than one cluster. The difference with the other dictionaries is that this one contains each net only once. This will be used to compute the total inter-cluster wirelength.
 
+        # TODO Store the files in a seperate folder depending on the clustering.
+        clusterAreaOut = "Name Type InstCount Boundary Area" # Clusters info to dump into 'clustersArea.out'
+
         for cluster in self.clusters:
             connectivity[cluster.id] = []
             connectivityUniqueNet[cluster.id] = []
             clusterNetSet[cluster.id] = Set()
+            clusterGateArea = 0 # Cumulated area of the gates in the cluster
             print "Source cluster: " + str(cluster.id)
             for key in cluster.gates:
                 gateName = cluster.gates[key].name
@@ -543,6 +553,17 @@ class Design:
                                                 # If the net is not registered as spaning over several clusters, add it.
                                                 spaningNetsUnique[netKey] = net
 
+            # Set the line corresponding to this cluster for the information dumping into clustersArea.out
+            clusterAreaOut += str(cluster.id) + " " + "exclusive" + " " + str(len(cluster.gates)) + " " + \
+                            "(" + str(cluster.origin[0]) + "," + str(cluster.origin[1]) + ")" + " " + \
+                            "(" + str(cluster.origin[0] + cluster.width) + "," + \
+                            str(cluster.origin[1] + cluster.height) + ")" + " " + \
+                            str(cluster.getGateArea()) + "\n"
+
+
+        print "Dumping clustersArea.out"
+        with open("clustersArea.out", 'w') as file:
+            file.write(clusterAreaOut)
 
 
         """
@@ -829,9 +850,16 @@ class Cluster:
         self.height = height
         self.origin = origin
         self.gates = dict()
+        self.gateArea = 0 # Cumulated area of all the gates in the cluster
 
     def addGate(self, gate):
         self.gates[gate.name] = gate
+
+    def setGateArea(self, area):
+        self.gateArea = area
+
+    def getGateArea(self):
+        return self.gateArea
 
 
 
