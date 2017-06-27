@@ -454,10 +454,12 @@ class Design:
 
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
         gateKeys = self.gates.keys() # Dump keys from the gates dictionary
+        clusterInstancesStr = "" # String of list of cluster instances to dump into clustersInstances.out
         for cluster in self.clusters:
             i = 0
             gateKeysNotPlaced = [] # Keys of the gates that have not be placed into a cluster yet.
             clusterGateArea = 0 # Cumulated area of the gates in the cluster
+            clusterInstancesStr += str(cluster.id)
 
             for key in gateKeys:
                 # Check if the gate coordinates are below the top right corner of the cluster
@@ -469,6 +471,8 @@ class Design:
                     self.gates[key].addCluster(cluster)
                     # Add the gate area to the total of the cluster:
                     clusterGateArea += self.gates[key].getArea()
+                    # TODO if the gate name contains a '[' or ']', put {} around its name.
+                    clusterInstancesStr += " " + str(self.gates[key].name)
                 else:
                     gateKeysNotPlaced.append(key)
 
@@ -479,7 +483,13 @@ class Design:
             # Set the cluster 'gate area'
             cluster.setGateArea(clusterGateArea)
 
+            clusterInstancesStr += "\n"
+
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
+
+        # Dump cluster instances
+        with open('clustersInstances.out', 'w') as file:
+            file.write(clusterInstancesStr)
 
 
 
