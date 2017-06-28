@@ -247,6 +247,11 @@ class Design:
         endOfNet = False # end of single net
         endOfNets = False # end of bloc with all the nets
         inNets = False
+        instancesPerNetsStr = "" # String containing the content of 'InstancesPerNet.out'.
+        netsStr = "" # String containing the content of 'Nets.out'
+        wlNetsStr = "NET  NUM_PINS  LENGTH\n" # String containing the content of 'WLnets.out'.
+                                              # The 'NUM_PINS' part is the number of gates + the number of pins.
+        cellCoordStr = "" # String containing the content of 'CellCoord.out'
 
         with open("ldpc_5.8.def", 'r') as f:
             line = f.readline()
@@ -263,6 +268,8 @@ class Design:
                     if '- ' in line:
                         # new net
                         net = Net(line.split(' ')[1])
+                        instancesPerNetsStr += str(net.name)
+                        netsStr += str(net.name) + "\n"
                         # Read the next line after the net name,
                         # it should contain the connected cells names.
                         netDetails = f.readline()
@@ -281,9 +288,16 @@ class Design:
                                     gate = self.gates.get(gateBlockSplit[1])
                                     net.addGate(gate)
                                     gate.addNet(net)
+                                    # TODO if gate.name contains '[' or ']', enclose the name between '{}'
+                                    instancesPerNetsStr += " " + str(gate.name)
+
+                                    cellCoordStr += str(net.name) + "," + str(gate.name) + "," + \
+                                                    str(gate.x) + ', ' + str(gate.y) + "\n"
 
                             netDetails = f.readline().strip()
                             netLength = 0
+
+                        instancesPerNetsStr += "\n"
 
                         while not ';' in netDetails:
                             # Now, we are looking at the detailed route of the net.
@@ -336,12 +350,25 @@ class Design:
                         # print net.name + ": " + str(netLength)
 
                         self.addNet(net)
+
+                        wlNetsStr += str(net.name) + " " + str(len(net.gates) + len(net.pins)) + " " + str(net.wl) + "\n"
                     # end if
 
 
                 line = f.readline()
             # end while
 
+        with open("InstancesPerNet.out", 'w') as file:
+            file.write(instancesPerNetsStr)
+
+        with open("Nets.out", 'w') as file:
+            file.write(netsStr)
+
+        with open("WLnets.out", 'w') as file:
+            file.write(wlNetsStr)
+
+        with open("CellCoord.out", 'w') as file:
+            file.write(cellCoordStr)
 
 
     def sortNets(self):
@@ -472,6 +499,7 @@ class Design:
                     # Add the gate area to the total of the cluster:
                     clusterGateArea += self.gates[key].getArea()
                     # TODO if the gate name contains a '[' or ']', put {} around its name.
+                    # TODO make sure there is no gate with a space in its name.
                     clusterInstancesStr += " " + str(self.gates[key].name)
                 else:
                     gateKeysNotPlaced.append(key)
