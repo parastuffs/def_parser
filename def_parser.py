@@ -9,7 +9,7 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 macros = dict() # Filled inside extractStdCells()
 
 # Amount of clusters wished
-clustersTarget = 100
+clustersTarget = 1000
 # Actual amount of clusters
 clustersTotal = 0
 
@@ -481,7 +481,7 @@ class Design:
 
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
         gateKeys = self.gates.keys() # Dump keys from the gates dictionary
-        clusterInstancesStr = "" # String of list of cluster instances to dump into clustersInstances.out
+        clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
         for cluster in self.clusters:
             i = 0
             gateKeysNotPlaced = [] # Keys of the gates that have not be placed into a cluster yet.
@@ -516,7 +516,7 @@ class Design:
         print "Total amount of place gates in clusters: " + str(checkClusterGates)
 
         # Dump cluster instances
-        with open('clustersInstances.out', 'w') as file:
+        with open('ClustersInstances.out', 'w') as file:
             file.write(clusterInstancesStr)
 
 
@@ -552,7 +552,7 @@ class Design:
         spaningNetsUnique = dict() # This dicitonary contains all the nets that span over more than one cluster. The difference with the other dictionaries is that this one contains each net only once. This will be used to compute the total inter-cluster wirelength.
 
         # TODO Store the files in a seperate folder depending on the clustering.
-        clusterAreaOut = "Name Type InstCount Boundary Area" # Clusters info to dump into 'clustersArea.out'
+        clusterAreaOut = "Name Type InstCount Boundary Area\n" # Clusters info to dump into 'ClustersArea.out'
 
         for cluster in self.clusters:
             connectivity[cluster.id] = []
@@ -599,8 +599,8 @@ class Design:
                             str(cluster.getGateArea()) + "\n"
 
 
-        print "Dumping clustersArea.out"
-        with open("clustersArea.out", 'w') as file:
+        print "Dumping ClustersArea.out"
+        with open("ClustersArea.out", 'w') as file:
             file.write(clusterAreaOut)
 
 
