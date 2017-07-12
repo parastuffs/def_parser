@@ -288,7 +288,7 @@ class Design:
                         # Read the next line after the net name,
                         # it should contain the connected cells names.
                         netDetails = f.readline()
-                        while not 'ROUTED' in netDetails:
+                        while not 'ROUTED' in netDetails and not ';' in netDetails:
                             split = netDetails.split(')') # Split the line so that each element is only one pin or gate
                             for gateBlock in split:
                                 gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
@@ -305,7 +305,7 @@ class Design:
                                         # This is not a normal situation. Debug.
                                         print "gateblock; " + str(gateBlock)
                                         print "netdetails: " + str(netDetails)
-                                        print "Gate we are trying to create: '" + str(gateBlockSplit[1]) + "'"
+                                        print "Gate we are trying to add: '" + str(gateBlockSplit[1]) + "'"
                                         print "For the net: " + str(net.name)
                                     net.addGate(gate)
                                     gate.addNet(net)
@@ -316,7 +316,8 @@ class Design:
                                                     str(gate.x) + ', ' + str(gate.y) + "\n"
 
                             netDetails = f.readline().strip()
-                            netLength = 0
+
+                        netLength = 0
 
                         instancesPerNetsStr += "\n"
 
