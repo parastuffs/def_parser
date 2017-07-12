@@ -7,6 +7,7 @@ import locale
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 macros = dict() # Filled inside extractStdCells()
+unknownCells = ["SDFQSTKD1", "OAI21D2", "BUFFD4", "OR2XD2", "AOI21D2", "AO22D2", "AO21D2", "AOI22D2", "AOI211D2", "BUFFD8", "OA211D2", "BUFFD16"]
 
 # Amount of clusters wished
 clustersTarget = 1000
@@ -99,7 +100,8 @@ class Design:
 
     def ReadArea(self):
         print (str("Reading def file"))
-        with open("ldpc_5.8.def", 'r') as f:
+        # with open("ldpc_5.8.def", 'r') as f:
+        with open("BoomCore.def", 'r') as f:
             for line in f: # Read the file sequentially
                 if 'DIEAREA' in line:
                     area = line.split(' ')
@@ -121,8 +123,10 @@ class Design:
 
         inComponents = False
         endOfComponents = False
+        unknownCellsCounts = 0
 
-        with open("ldpc_5.8.def", 'r') as f:
+        # with open("ldpc_5.8.def", 'r') as f:
+        with open("BoomCore.def", 'r') as f:
             for line in f:
                 # TODO: clean to remove the use of break
                 # TODO: try to need less try/except
@@ -137,8 +141,16 @@ class Design:
                     except:
                         gate = Gate(split[1])
                         gate.setStdCell(split[2])
-                        gate.setWidth(macros.get(gate.getStdCell())[0]) # Get the width from the macros dictionary.
-                        gate.setHeight(macros.get(gate.getStdCell())[1]) # Get the height from the macros dictionary.
+                        # if macros.get(gate.getStdCell()) == None:
+                        #     print "Macro not found when looking for cell '" + str(gate.name) + "' of type '" + gate.getStdCell() + "'"
+                        if gate.getStdCell() in unknownCells:
+                            # StdCell missing from the .lef file. Use default width/height
+                            gate.setWidth(0.25)
+                            gate.setHeight(0.25)
+                            unknownCellsCounts += 1
+                        else:
+                            gate.setWidth(macros.get(gate.getStdCell())[0]) # Get the width from the macros dictionary.
+                            gate.setHeight(macros.get(gate.getStdCell())[1]) # Get the height from the macros dictionary.
                         """
                         A cell is always defined on a single line.
                         On this line, its coordinates are written as
@@ -187,6 +199,7 @@ class Design:
         for key in self.gates:
             totArea += self.gates[key].getArea()
         print "Total area of the gates: " + str(totArea)
+        print "Unknown cell encountered: " + str(unknownCellsCounts)
         # exit()
 
 
@@ -204,7 +217,8 @@ class Design:
         inPins = False
         endOfPins = False
 
-        with open("ldpc_5.8.def", 'r') as f:
+        # with open("ldpc_5.8.def", 'r') as f:
+        with open("BoomCore.def", 'r') as f:
             line = f.readline()
 
             while line:
@@ -253,7 +267,8 @@ class Design:
                                               # The 'NUM_PINS' part is the number of gates + the number of pins.
         cellCoordStr = "" # String containing the content of 'CellCoord.out'
 
-        with open("ldpc_5.8.def", 'r') as f:
+        # with open("ldpc_5.8.def", 'r') as f:
+        with open("BoomCore.def", 'r') as f:
             line = f.readline()
             while line:
 
@@ -286,6 +301,12 @@ class Design:
                                     # This is a gate, add its name to the net
                                     # '1' because we have {(, <gate_name>, <gate_port>}
                                     gate = self.gates.get(gateBlockSplit[1])
+                                    if gate == None:
+                                        # This is not a normal situation. Debug.
+                                        print "gateblock; " + str(gateBlock)
+                                        print "netdetails: " + str(netDetails)
+                                        print "Gate we are trying to create: '" + str(gateBlockSplit[1]) + "'"
+                                        print "For the net: " + str(net.name)
                                     net.addGate(gate)
                                     gate.addNet(net)
                                     # TODO if gate.name contains '[' or ']', enclose the name between '{}'
