@@ -4,10 +4,13 @@ from math import *
 import copy
 from sets import Set
 import locale
+import os
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 macros = dict() # Filled inside extractStdCells()
-unknownCells = ["SDFQSTKD1", "OAI21D2", "BUFFD4", "OR2XD2", "AOI21D2", "AO22D2", "AO21D2", "AOI22D2", "AOI211D2", "BUFFD8", "OA211D2", "BUFFD16"]
+# unknownCells = ["SDFQSTKD1", "OAI21D2", "BUFFD4", "OR2XD2", "AOI21D2", "AO22D2", "AO21D2", "AOI22D2", "AOI211D2", "BUFFD8", "OA211D2", "BUFFD16"]
+unknownCells = []
+deffile = ""
 
 # Amount of clusters wished
 clustersTarget = 100
@@ -100,8 +103,7 @@ class Design:
 
     def ReadArea(self):
         print (str("Reading def file"))
-        with open("ldpc_5.8.def", 'r') as f:
-        # with open("BoomCore.def", 'r') as f:
+        with open(deffile, 'r') as f:
             for line in f: # Read the file sequentially
                 if 'DIEAREA' in line:
                     area = line.split(' ')
@@ -125,8 +127,7 @@ class Design:
         endOfComponents = False
         unknownCellsCounts = 0
 
-        with open("ldpc_5.8.def", 'r') as f:
-        # with open("BoomCore.def", 'r') as f:
+        with open(deffile, 'r') as f:
             for line in f:
                 # TODO: clean to remove the use of break
                 # TODO: try to need less try/except
@@ -217,8 +218,7 @@ class Design:
         inPins = False
         endOfPins = False
 
-        with open("ldpc_5.8.def", 'r') as f:
-        # with open("BoomCore.def", 'r') as f:
+        with open(deffile, 'r') as f:
             line = f.readline()
 
             while line:
@@ -267,8 +267,7 @@ class Design:
                                               # The 'NUM_PINS' part is the number of gates + the number of pins.
         cellCoordStr = "" # String containing the content of 'CellCoord.out'
 
-        with open("ldpc_5.8.def", 'r') as f:
-        # with open("BoomCore.def", 'r') as f:
+        with open(deffile, 'r') as f:
             line = f.readline()
             while line:
 
@@ -951,7 +950,8 @@ def extractStdCells():
     The size should be in microns.
     """
 
-    leffile = "/home/para/dev/def_parser/lef/N07_7.5TMint_7.5TM2_M1open.lef"
+    # leffile = "/home/para/dev/def_parser/lef/N07_7.5TMint_7.5TM2_M1open.lef"
+    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/"
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
     areaFound = False
@@ -959,33 +959,35 @@ def extractStdCells():
     macroHeight = 0
     # macros = dict()
 
-    with open(leffile, 'r') as f:
-        line = f.readline()
-        while line:
+    for file in os.listdir(lefdir):
+        if file.endswith(".lef"):
+            with open(lefdir+file, 'r') as f:
+                line = f.readline()
+                while line:
 
-            if 'MACRO' in line:
-                inMacro = True
-                macroName = line.split()[1] # May need to 'line = line.strip("\n")'
-                # print macroName
-                areaFound = False
+                    if 'MACRO' in line:
+                        inMacro = True
+                        macroName = line.split()[1] # May need to 'line = line.strip("\n")'
+                        # print macroName
+                        areaFound = False
 
-            while inMacro and not areaFound:
-                if 'SIZE' in line:
-                    macroWidth = float(line.split()[1])
-                    # print macroWidth
-                    macroHeight = float(line.split()[3])
-                    # print macroHeight
-                    macros[macroName] = [macroWidth, macroHeight]
-                    areaFound = True
-                elif str("END " + macroName) in line:
-                    inMacro = False
+                    while inMacro and not areaFound:
+                        if 'SIZE' in line:
+                            macroWidth = float(line.split()[1])
+                            # print macroWidth
+                            macroHeight = float(line.split()[3])
+                            # print macroHeight
+                            macros[macroName] = [macroWidth, macroHeight]
+                            areaFound = True
+                        elif str("END " + macroName) in line:
+                            inMacro = False
 
-                if inMacro and not areaFound:
-                    # We are not about to leave the loop
-                    # TODO there must be a non dirty way to do this.
+                        if inMacro and not areaFound:
+                            # We are not about to leave the loop
+                            # TODO there must be a non dirty way to do this.
+                            line = f.readline()
+
                     line = f.readline()
-
-            line = f.readline()
 
     # print macros
 
@@ -1009,7 +1011,10 @@ if __name__ == "__main__":
     extractStdCells()
     # exit()
 
-
+    # TODO make this into cli parameter
+    deffile = "7nm_Jul2017/ldpc.def"
+    # deffile = "7nm_Jul2017/BoomCore.def"
+    # deffile = "7nm_Jul2017/flipr.def"
 
 
 
