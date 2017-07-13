@@ -294,7 +294,7 @@ class Design:
                                 # The keyword for this is 'NONDEFAULTRULE' and occurs
                                 # before the 'ROUTED' keyword.
                                 # If we find 'NONDEFAULTRULE', skip the line.
-                                netDetails = f.readline()
+                                netDetails = f.readline().strip()
                                 continue # ignores the end of the loop and skip to the next iteration.
 
 
@@ -349,7 +349,11 @@ class Design:
                                     # First line begins with '+ ROUTED', subsequent ones don't.
                                     # Beware the next lines begin with 'NEW'
                                     baseIndex += 1
+                                if 'TAPER' in netDetails:
+                                    # Extra keyword meaning we switch back to the default routing rules.
+                                    baseIndex += 1
                                 # print netDetailsSplit
+                                # print net.name
                                 x1 = int(netDetailsSplit[baseIndex+3])
                                 y1 = int(netDetailsSplit[baseIndex+4])
                                 if netDetailsSplit[baseIndex+6] == '(':
@@ -416,7 +420,7 @@ class Design:
         for i in range(0, len(netLengths)):
             cumulatedLength += netLengths[i]
             s += str(netNames[i]) + " " + str(netLengths[i]) + " " + str(cumulatedLength) + " " + str((i+1)*100/len(netLengths)) + "\n"
-        print s
+        # print s
         with open("LDPC_net_wl.csv", 'w') as file:
             file.write(s)
         # TODO generation du graphe en Python
@@ -645,7 +649,7 @@ class Design:
         for key in connectivity:
             s += str(key) + "," + str(len(connectivity[key]))
             s += "\n"
-        print s
+        # print s
         with open("inter_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
             file.write(s)
 
@@ -677,7 +681,7 @@ class Design:
                 for j in range(clustersTotal):
                     s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
                 s += "\n"
-            print s
+            # print s
             with open("inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv", 'w') as file:
                 file.write(s)
 
@@ -694,7 +698,7 @@ class Design:
                 for j in range(clustersTotal):
                     s+= "," + str(conMatrixUniqueNet[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
                 s += "\n"
-            print s
+            # print s
             with open("inter_cluster_connectivity_matrix_unique_net_" + str(clustersTotal) + ".csv", 'w') as file:
                 file.write(s)
 
@@ -705,7 +709,7 @@ class Design:
         for key in connectivityUniqueNet:
             s += str(key) + "," + str(len(connectivityUniqueNet[key]))
             s += "\n"
-        print s
+        # print s
         with open("inter_cluster_connectivity_unique_nets_" + str(clustersTotal) + ".csv", 'w') as file:
             file.write(s)
 
@@ -736,7 +740,7 @@ class Design:
                     break
                 else:
                     clusterID = net.gates[key].cluster.id
-                    print "(" + str(net.name) + ") Changing the clusterID to " + str(clusterID)
+                    # print "(" + str(net.name) + ") Changing the clusterID to " + str(clusterID)
             if not discardNet and clusterID != -1:
                 # Need the != -1 condition because if we reach this branch with clusterID = -1, it means that the net does not have any gate,
                 # it means that net.gates is empty, and that *can* happen, it's fine.
@@ -751,7 +755,7 @@ class Design:
         for key in connectivityIntra:
             s += str(key) + "," + str(len(connectivityIntra[key]))
             s += "\n"
-        print s
+        # print s
         with open("intra_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
             file.write(s)
 
@@ -1022,8 +1026,8 @@ if __name__ == "__main__":
     # exit()
 
     # TODO make this into cli parameter
-    deffile = "7nm_Jul2017/ldpc.def"
-    # deffile = "7nm_Jul2017/BoomCore.def"
+    # deffile = "7nm_Jul2017/ldpc.def"
+    deffile = "7nm_Jul2017/BoomCore.def"
     # deffile = "7nm_Jul2017/flipr.def"
 
 
