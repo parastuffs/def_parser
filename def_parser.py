@@ -288,6 +288,16 @@ class Design:
                         # it should contain the connected cells names.
                         netDetails = f.readline()
                         while not 'ROUTED' in netDetails and not ';' in netDetails:
+
+                            if "NONDEFAULTRULE" in netDetails:
+                                # Some net use specific rules for spacing and track width.
+                                # The keyword for this is 'NONDEFAULTRULE' and occurs
+                                # before the 'ROUTED' keyword.
+                                # If we find 'NONDEFAULTRULE', skip the line.
+                                netDetails = f.readline()
+                                continue # ignores the end of the loop and skip to the next iteration.
+
+
                             split = netDetails.split(')') # Split the line so that each element is only one pin or gate
                             for gateBlock in split:
                                 gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
