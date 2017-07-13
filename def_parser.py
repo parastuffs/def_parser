@@ -10,7 +10,7 @@ macros = dict() # Filled inside extractStdCells()
 unknownCells = ["SDFQSTKD1", "OAI21D2", "BUFFD4", "OR2XD2", "AOI21D2", "AO22D2", "AO21D2", "AOI22D2", "AOI211D2", "BUFFD8", "OA211D2", "BUFFD16"]
 
 # Amount of clusters wished
-clustersTarget = 1000
+clustersTarget = 100
 # Actual amount of clusters
 clustersTotal = 0
 
@@ -100,8 +100,8 @@ class Design:
 
     def ReadArea(self):
         print (str("Reading def file"))
-        # with open("ldpc_5.8.def", 'r') as f:
-        with open("BoomCore.def", 'r') as f:
+        with open("ldpc_5.8.def", 'r') as f:
+        # with open("BoomCore.def", 'r') as f:
             for line in f: # Read the file sequentially
                 if 'DIEAREA' in line:
                     area = line.split(' ')
@@ -125,8 +125,8 @@ class Design:
         endOfComponents = False
         unknownCellsCounts = 0
 
-        # with open("ldpc_5.8.def", 'r') as f:
-        with open("BoomCore.def", 'r') as f:
+        with open("ldpc_5.8.def", 'r') as f:
+        # with open("BoomCore.def", 'r') as f:
             for line in f:
                 # TODO: clean to remove the use of break
                 # TODO: try to need less try/except
@@ -217,8 +217,8 @@ class Design:
         inPins = False
         endOfPins = False
 
-        # with open("ldpc_5.8.def", 'r') as f:
-        with open("BoomCore.def", 'r') as f:
+        with open("ldpc_5.8.def", 'r') as f:
+        # with open("BoomCore.def", 'r') as f:
             line = f.readline()
 
             while line:
@@ -267,8 +267,8 @@ class Design:
                                               # The 'NUM_PINS' part is the number of gates + the number of pins.
         cellCoordStr = "" # String containing the content of 'CellCoord.out'
 
-        # with open("ldpc_5.8.def", 'r') as f:
-        with open("BoomCore.def", 'r') as f:
+        with open("ldpc_5.8.def", 'r') as f:
+        # with open("BoomCore.def", 'r') as f:
             line = f.readline()
             while line:
 
@@ -332,7 +332,7 @@ class Design:
 
 
 
-                            if not 'SOURCE' in netDetails and not 'USE' in netDetails and not 'WEIGHT' in netDetails:
+                            if not 'SOURCE' in netDetails and not 'USE' in netDetails and not 'WEIGHT' in netDetails and not 'PROPERTY' in netDetails:
                                 # Skip the lines containing those taboo words.
                                 netDetailsSplit = netDetails.split(' ')
                                 baseIndex = 0 # baseIndex to be shifted in case the line begins with 'ROUTED's
@@ -718,13 +718,21 @@ class Design:
             clusterID = -1 # Begin with '-1' to mark the fact that we are looking at the first gate of the net.
             discardNet = False
             for key in net.gates:
-                if net.gates[key] != clusterID and clusterID != -1:
+                if net.gates[key].cluster.id != clusterID and clusterID != -1:
                     # this gate is not in the same cluster as the previous one. Discard the net.
                     discardNet = True
+                    # print "(" + str(net.name) + ") We found a gate in a different cluster: from " + str(clusterID) + " to " + str(net.gates[key].cluster.id) + "(and net.gates[key] is " + str(net.gates[key]) + ")"
+                    # print "This concerns the net '" + str(net.name) + "'"
                     # TODO break the loop net.gates here
+                    break
                 else:
                     clusterID = net.gates[key].cluster.id
-            if not discardNet:
+                    print "(" + str(net.name) + ") Changing the clusterID to " + str(clusterID)
+            if not discardNet and clusterID != -1:
+                # Need the != -1 condition because if we reach this branch with clusterID = -1, it means that the net does not have any gate,
+                # it means that net.gates is empty, and that *can* happen, it's fine.
+                # It's more efficient to check here for clusterID rather than len(net.gates) for every net.
+                # print "(" + str(net.name) + ") inside 'if not discardNet:', clusterID = " + str(clusterID)
                 connectivityIntra[clusterID].append(net.name)
 
 
