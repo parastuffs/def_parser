@@ -8,6 +8,7 @@ import os
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 macros = dict() # Filled inside extractStdCells()
+memoryMacros = dict()
 # unknownCells = ["SDFQSTKD1", "OAI21D2", "BUFFD4", "OR2XD2", "AOI21D2", "AO22D2", "AO21D2", "AOI22D2", "AOI211D2", "BUFFD8", "OA211D2", "BUFFD16"]
 unknownCells = []
 deffile = ""
@@ -16,6 +17,9 @@ deffile = ""
 clustersTarget = 100
 # Actual amount of clusters
 clustersTotal = 0
+
+# bb.out file, at least used for SPC.
+MEMORY_MACROS = True
 
 
 
@@ -414,14 +418,15 @@ class Design:
             netNames.append(net.name)
 
         heapSort(netLengths, netNames)
-        print "Exporting net lengths to LDPC_net_wl.csv"
+        filename = deffile.rsplit('.',1)[0].rsplit('/',1)[1] + "_net_wl.csv"
+        print "Exporting net lengths to " + filename
         s = "Net_name net_wire_length cumulated_wire_length %_of_nets\n"
         cumulatedLength = 0
         for i in range(0, len(netLengths)):
             cumulatedLength += netLengths[i]
             s += str(netNames[i]) + " " + str(netLengths[i]) + " " + str(cumulatedLength) + " " + str((i+1)*100/len(netLengths)) + "\n"
         # print s
-        with open("LDPC_net_wl.csv", 'w') as file:
+        with open(filename, 'w') as file:
             file.write(s)
         # TODO generation du graphe en Python
 
@@ -437,7 +442,7 @@ class Design:
 
     def clusterize(self):
         global clustersTotal
-
+        print "Clusterizing..."
 
         # The first, naive, implementation is to extract clusters from the design with the same aspect ratio.
         # The area of each cluster is the area of the design divided by the amount of clusters.
@@ -965,7 +970,9 @@ def extractStdCells():
     """
 
     # leffile = "/home/para/dev/def_parser/lef/N07_7.5TMint_7.5TM2_M1open.lef"
-    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/"
+    # lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/"
+    # lefdir = "/home/para/dev/def_parser/lef/"
+    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/"
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
     areaFound = False
@@ -1006,6 +1013,45 @@ def extractStdCells():
     # print macros
 
 
+def extractMemoryMacros(hrows, frows):
+    """
+    Extract the memory block from bb.out
+
+    BlackBox Type Count GateArea PhysicalArea Porosity TotalArea Width Height Orientation Instances
+    """
+
+    bbfile = "/home/para/dev/def_parser/7nm_Jul2017/SPC/bb.out"
+
+    with open(bbfile, 'r') as f:
+        lines = f.read().splitlines()
+
+    for i in xrange(0, hrows):
+        del lines[0]
+
+    for i in xrange(0, frows):
+        del lines[-1]
+
+    # Remove the spaces between the elements on each line
+    for i in xrange(0, len(lines)):
+        lines[i] = " ".join(lines[i].split())
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        line = line.split()
+
+        # If the line is not empty
+        if line:
+            instanceCount = int(line[2])
+            macros[line[0]] = [line[7], line[8]]
+
+            # Skip the line containing only an instance name
+            for k in range(instanceCount-1):
+                #skip
+                i += 1
+        print i
+        i += 1
+
 
 
 
@@ -1023,12 +1069,17 @@ def extractStdCells():
 if __name__ == "__main__":
     print "Hello World!"
     extractStdCells()
+    if MEMORY_MACROS:
+        extractMemoryMacros(14,4)
     # exit()
 
     # TODO make this into cli parameter
     # deffile = "7nm_Jul2017/ldpc.def"
-    deffile = "7nm_Jul2017/BoomCore.def"
+    # deffile = "7nm_Jul2017/BoomCore.def"
     # deffile = "7nm_Jul2017/flipr.def"
+    # deffile = "7nm_Jul2017/ldpc_fromGAtech_N07.def"
+    # deffile = "7nm_Jul2017/ccx.def"
+    deffile = "7nm_Jul2017/SPC/spc.def"
 
 
 
