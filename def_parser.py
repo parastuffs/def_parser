@@ -5,6 +5,8 @@ import copy
 from sets import Set
 import locale
 import os
+import datetime
+import errno
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 macros = dict() # Filled inside extractStdCells()
@@ -14,12 +16,21 @@ unknownCells = []
 deffile = ""
 
 # Amount of clusters wished
-clustersTarget = 100
+clustersTarget = 3000
 # Actual amount of clusters
 clustersTotal = 0
 
+clusteringMethod = "Naive_Geometric"
+
 # bb.out file, at least used for SPC.
-MEMORY_MACROS = True
+MEMORY_MACROS = False
+
+# Factor in def file.
+# TODO this should be extracted from the .def
+UNITS_DISTANCE_MICRONS = 1000
+# UNITS_DISTANCE_MICRONS = 10000
+
+output_dir = ""
 
 
 
@@ -106,13 +117,13 @@ class Design:
 
 
     def ReadArea(self):
-        print (str("Reading def file"))
+        print (str("Reading def file ") + deffile)
         with open(deffile, 'r') as f:
             for line in f: # Read the file sequentially
                 if 'DIEAREA' in line:
                     area = line.split(' ')
-                    self.setWidth(int(area[6])/10000)
-                    self.setHeight(int(area[7])/10000)
+                    self.setWidth(int(area[6])/UNITS_DISTANCE_MICRONS)
+                    self.setHeight(int(area[7])/UNITS_DISTANCE_MICRONS)
                     self.setArea()
 
 
@@ -167,20 +178,20 @@ class Design:
                         # TODO: Is there a way to search the index for two words?
                         # Like index("PLACED" | "FIXED')
                         try:
-                            gate.setX(int(split[split.index("PLACED") + 2])/10000)
+                            gate.setX(int(split[split.index("PLACED") + 2])/UNITS_DISTANCE_MICRONS)
                         except:
                             try:
-                                gate.setX(int(split[split.index("FIXED") + 2])/10000)
+                                gate.setX(int(split[split.index("FIXED") + 2])/UNITS_DISTANCE_MICRONS)
                             except:
                                 # If this raises an exception, it probably means
                                 # we reached the 'END COMPONENTS'
                                 pass
 
                         try:
-                            gate.setY(int(split[split.index("PLACED") + 3])/10000)
+                            gate.setY(int(split[split.index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
                         except:
                             try:
-                                gate.setY(int(split[split.index("FIXED") + 3])/10000)
+                                gate.setY(int(split[split.index("FIXED") + 3])/UNITS_DISTANCE_MICRONS)
                             except:
                                 pass
                             else:
@@ -243,8 +254,8 @@ class Design:
                         nextLine = f.readline()
 
                     # Now we are at the 'PLACED' line
-                    pin.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2])/10000)
-                    pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/10000)
+                    pin.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2])/UNITS_DISTANCE_MICRONS)
+                    pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
 
                     self.addPin(pin)
 
@@ -383,7 +394,7 @@ class Design:
 
 
                             netDetails = f.readline().strip()
-                        netLength = netLength / 10000 # 10^-4um to um
+                        netLength = netLength / UNITS_DISTANCE_MICRONS # 10^-4um to um
                         net.setLength(netLength)
                         self.totalWireLength += netLength
                         # print net.name + ": " + str(netLength)
@@ -457,7 +468,7 @@ class Design:
         originX = 0
         originY = 0
         count = 0
-        clusterListStr = "" # Clusters names list to dump into 'clusters.out'
+        clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
         # clusters = []
         while not full:
             if originY >= self.height:
@@ -492,9 +503,9 @@ class Design:
         print "Total cluster created: " + str(count)
         clustersTotal = count
 
-        # TODO 'clusters.out' should be a paramater/argument/global variable?
-        print "Dumping clusters.out"
-        with open("clusters.out", 'w') as file:
+        # TODO 'Clusters.out' should be a paramater/argument/global variable?
+        print "Dumping Clusters.out"
+        with open("Clusters.out", 'w') as file:
             file.write(clusterListStr)
 
         # Check for overshoot, clusters outside of design space.
@@ -560,6 +571,47 @@ class Design:
             file.write(clusterInstancesStr)
 
 
+
+    def clusterizeOneToOne(self):
+        """
+        Each cluster is one gate.
+        """
+        print "Clusterizing..."
+        global clustersTotal
+        clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
+        clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
+
+        for i, key in enumerate(self.gates.keys()):
+            width = self.gates[key].width
+            height = self.gates[key].height
+            area = self.gates[key].getArea()
+            origin = [self.gates[key].x, self.gates[key].y]
+            identifier = i
+
+            cluster = Cluster(width, height, area, origin, identifier)
+
+            cluster.addGate(self.gates[key])
+
+            cluster.setGateArea(area) # Same as the cluster area in this case.
+
+            self.clusters.append(cluster)
+
+            self.gates[key].addCluster(cluster)
+
+            clusterListStr += str(cluster.id) + "\n"
+            clusterInstancesStr += str(cluster.id)
+            clusterInstancesStr += " " + str(self.gates[key].name) + "\n"
+
+        clustersTotal = len(self.gates)
+
+        # TODO 'Clusters.out' should be a paramater/argument/global variable?
+        print "Dumping Clusters.out"
+        with open("Clusters.out", 'w') as file:
+            file.write(clusterListStr)
+
+        # Dump cluster instances
+        with open('ClustersInstances.out', 'w') as file:
+            file.write(clusterInstancesStr)
 
      #######   ##         ##     ##   #######   ##########   #######     #####    ##      ##  
     ##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ###     ##  
@@ -970,9 +1022,9 @@ def extractStdCells():
     """
 
     # leffile = "/home/para/dev/def_parser/lef/N07_7.5TMint_7.5TM2_M1open.lef"
-    # lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/"
+    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/"
     # lefdir = "/home/para/dev/def_parser/lef/"
-    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/"
+    # lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/"
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
     areaFound = False
@@ -1043,13 +1095,12 @@ def extractMemoryMacros(hrows, frows):
         # If the line is not empty
         if line:
             instanceCount = int(line[2])
-            macros[line[0]] = [line[7], line[8]]
+            macros[line[0]] = [float(line[7]), float(line[8])]
 
             # Skip the line containing only an instance name
             for k in range(instanceCount-1):
                 #skip
                 i += 1
-        print i
         i += 1
 
 
@@ -1068,36 +1119,72 @@ def extractMemoryMacros(hrows, frows):
 
 if __name__ == "__main__":
     print "Hello World!"
+
+    # Create the directory for the output.
+    rootDir = os.getcwd()
+    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "/"
+    print "Working inside " + output_dir
+
+    try:
+        os.makedirs(output_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+
     extractStdCells()
     if MEMORY_MACROS:
         extractMemoryMacros(14,4)
     # exit()
 
     # TODO make this into cli parameter
-    # deffile = "7nm_Jul2017/ldpc.def"
+    deffile = "7nm_Jul2017/ldpc.def"
     # deffile = "7nm_Jul2017/BoomCore.def"
     # deffile = "7nm_Jul2017/flipr.def"
     # deffile = "7nm_Jul2017/ldpc_fromGAtech_N07.def"
     # deffile = "7nm_Jul2017/ccx.def"
-    deffile = "7nm_Jul2017/SPC/spc.def"
+    # deffile = "7nm_Jul2017/SPC/spc.def" # Don't forget to turn the MEMORY_MACROS on.
+    deffile = rootDir + "/" + deffile
+
+    # Change the working directory to the one created above.
+    os.chdir(output_dir)
+
+    # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
+    for clustersTarget in [0]:
+        clustering_dir = output_dir + "/" + deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget)
+
+        print clustering_dir
+
+        try:
+            os.makedirs(clustering_dir)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+
+        # Change the working directory to clustering dir.
+        os.chdir(clustering_dir)
 
 
 
-    design = Design()
-    design.ReadArea()
-    design.ExtractCells()
-    # design.Digest()
-    design.extractPins()
-    # design.Digest()
+        design = Design()
+        design.ReadArea()
+        design.ExtractCells()
+        # design.Digest()
+        design.extractPins()
+        # design.Digest()
 
-    design.extractNets()
-    design.sortNets()
-    design.Digest()
+        design.extractNets()
+        design.sortNets()
+        design.Digest()
 
-    print design.width * design.height
+        print design.width * design.height
 
-    design.clusterize()
-    design.clusterConnectivity()
+        if clustersTarget == 0:
+            design.clusterizeOneToOne()
+        else:
+            design.clusterize()
+        design.clusterConnectivity()
+
 
 
 
@@ -1108,34 +1195,34 @@ if __name__ == "__main__":
     ## Image creation
     ########
 
-    imgW = 1000
-    imgH = int(imgW * (design.width/design.height))
+    # imgW = 1000
+    # imgH = int(imgW * (design.width/design.height))
 
-    data = [0] * ((imgW+1) * (imgH+1))
-    print imgW*imgH
-    maxPos = 0
+    # data = [0] * ((imgW+1) * (imgH+1))
+    # print imgW*imgH
+    # maxPos = 0
 
-    for key in design.gates:
-        position = int(imgW * ((design.gates[key].y / design.height) * imgH) + ((design.gates[key].x / design.width) * imgW))
-        # print "------"
-        # print design.height
-        # print design.width
-        # print position
-        data[position] += 100
-        if data[position] > maxPos:
-            maxPos = data[position]
-        # if data[position] >= 255:
-        #     data[position] = 255
+    # for key in design.gates:
+    #     position = int(imgW * ((design.gates[key].y / design.height) * imgH) + ((design.gates[key].x / design.width) * imgW))
+    #     # print "------"
+    #     # print design.height
+    #     # print design.width
+    #     # print position
+    #     data[position] += 100
+    #     if data[position] > maxPos:
+    #         maxPos = data[position]
+    #     # if data[position] >= 255:
+    #     #     data[position] = 255
 
-    for i in range(len(data)):
-        data[i] = int((data[i] * 255.0) / maxPos)
+    # for i in range(len(data)):
+    #     data[i] = int((data[i] * 255.0) / maxPos)
 
 
-    print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
-    img = Image.new('L', (imgW+1, imgH+1))
-    print "Put data"
-    img.putdata(data)
-    print "save image"
-    img.save('out.png')
-    # print "show image"
-    # img.show()
+    # print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
+    # img = Image.new('L', (imgW+1, imgH+1))
+    # print "Put data"
+    # img.putdata(data)
+    # print "save image"
+    # img.save('out.png')
+    # # print "show image"
+    # # img.show()
