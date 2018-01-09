@@ -7,7 +7,11 @@ import locale
 import os
 import datetime
 import errno
+import random
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+
+RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
+
 
 macros = dict() # Filled inside extractStdCells()
 memoryMacros = dict()
@@ -20,15 +24,15 @@ clustersTarget = 3000
 # Actual amount of clusters
 clustersTotal = 0
 
-clusteringMethod = "Naive_Geometric"
+# clusteringMethod = "Naive_Geometric"
 
 # bb.out file, at least used for SPC.
 MEMORY_MACROS = False
 
 # Factor in def file.
 # TODO this should be extracted from the .def
-UNITS_DISTANCE_MICRONS = 1000
-# UNITS_DISTANCE_MICRONS = 10000
+# UNITS_DISTANCE_MICRONS = 1000 #SPC,CCX
+UNITS_DISTANCE_MICRONS = 10000 #flipr, BoomCore, LDPC
 
 output_dir = ""
 
@@ -569,6 +573,30 @@ class Design:
         # Dump cluster instances
         with open('ClustersInstances.out', 'w') as file:
             file.write(clusterInstancesStr)
+
+
+
+
+
+
+
+    def randomClusterize(self, clustersTarget):
+
+        # First create all the clusters with default values.
+        # TODO use the __init__ method of the object Cluster
+        for x in range(clustersTarget):
+            # TODO What will be the impact of the fact that the cluster has no geometrical meaning, now?
+            # What should I put for the coordinates?
+            newCluster = Cluster(0, 0, 0, [0, 0], x)
+            self.clusters.append(newCluster)
+
+
+
+
+
+
+
+
 
 
 
@@ -1120,6 +1148,11 @@ def extractMemoryMacros(hrows, frows):
 if __name__ == "__main__":
     print "Hello World!"
 
+    if RANDOM_SEED == 0:
+        RANDOM_SEED = random.random()
+    random.seed(RANDOM_SEED)
+    print "Seed: " + str(RANDOM_SEED)
+
     # Create the directory for the output.
     rootDir = os.getcwd()
     output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "/"
@@ -1149,41 +1182,52 @@ if __name__ == "__main__":
     # Change the working directory to the one created above.
     os.chdir(output_dir)
 
-    # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
-    for clustersTarget in [0]:
-        clustering_dir = output_dir + "/" + deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget)
+    for clusteringMethod in ["Naive_Geometric", "random"]:
+        for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
+        # for clustersTarget in [0]:
+            print "Clustering method: " + clusteringMethod
+            clustering_dir = output_dir + "/" + deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget)
 
-        print clustering_dir
+            print "Clustering directory: " + clustering_dir
 
-        try:
-            os.makedirs(clustering_dir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
+            try:
+                os.makedirs(clustering_dir)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
 
-        # Change the working directory to clustering dir.
-        os.chdir(clustering_dir)
+            # Change the working directory to clustering dir.
+            os.chdir(clustering_dir)
 
 
+            # TODO Why on Earth would I re-read the design as a whole for each
+            # clustering method ? It's always the same, it never changes.
+            # The only thing that changes is the clustering inside the Design
+            # object. It's not critical at the moment, as the clustering is
+            # by far the longest part of the execution, but still.
 
-        design = Design()
-        design.ReadArea()
-        design.ExtractCells()
-        # design.Digest()
-        design.extractPins()
-        # design.Digest()
+            design = Design()
+            design.ReadArea()
+            design.ExtractCells()
+            # design.Digest()
+            design.extractPins()
+            # design.Digest()
 
-        design.extractNets()
-        design.sortNets()
-        design.Digest()
+            design.extractNets()
+            design.sortNets()
+            design.Digest()
 
-        print design.width * design.height
+            print design.width * design.height
 
-        if clustersTarget == 0:
-            design.clusterizeOneToOne()
-        else:
-            design.clusterize()
-        design.clusterConnectivity()
+            if clustersTarget == 0:
+                design.clusterizeOneToOne()
+            else:
+                # Isn't there a cleaner way to call those functions base on clusteringMethod ?
+                if clusteringMethod == "Naive_Geometric": 
+                    design.clusterize()
+                elif clusteringMethod == "random"
+                    design.randomClusterize(clustersTarget)
+            design.clusterConnectivity()
 
 
 
