@@ -22,7 +22,7 @@ deffile = ""
 # Amount of clusters wished
 clustersTarget = 3000
 # Actual amount of clusters
-clustersTotal = 0
+clustersTotal = 0 # Ugly as F global variable. Replace with len(self.clusters)? TODO
 
 # clusteringMethod = "Naive_Geometric"
 
@@ -103,6 +103,7 @@ class Design:
         self.gates = dict()
         self.pins = dict()        # List of Pin objects
         self.area = 0
+        self.gatesArea = 0
         self.width = 0
         self.height = 0
         self.clusters = [] # List of cluster objects
@@ -215,10 +216,10 @@ class Design:
         """
         Compute the total surface of all the gates.
         """
-        totArea = 0
         for key in self.gates:
-            totArea += self.gates[key].getArea()
-        print "Total area of the gates: " + str(totArea)
+            self.gatesArea += self.gates[key].getArea()
+        print "Total area of the gates: " + str(self.gatesArea) + " (" + str(100*self.gatesArea/self.area) + \
+        "% of total area)"
         print "Unknown cell encountered: " + str(unknownCellsCounts)
         # exit()
 
@@ -581,18 +582,58 @@ class Design:
 
 
     def randomClusterize(self, clustersTarget):
+        global clustersTotal
 
-        # First create all the clusters with default values.
         # TODO use the __init__ method of the object Cluster
+        """
+        First create all the clusters with default values.
+        """
+        clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
         for x in range(clustersTarget):
             # TODO What will be the impact of the fact that the cluster has no geometrical meaning, now?
             # What should I put for the coordinates?
             newCluster = Cluster(0, 0, 0, [0, 0], x)
             self.clusters.append(newCluster)
+            clusterListStr += str(newCluster.id) + "\n"
+        clustersTotal = len(self.clusters)
+
+        print "Dumping Clusters.out"
+        with open("Clusters.out", 'w') as file:
+            file.write(clusterListStr)
 
 
+        """
+        For each gate in the design, choose a random cluster.
+        """
+        for k in self.gates:
+            clusterID = int(random.uniform(0, len(self.clusters)))
+            self.gates[k].addCluster(self.clusters[clusterID])
+            self.clusters[clusterID].setGateArea(self.clusters[clusterID].getGateArea() + self.gates[k].getArea())
+            self.clusters[clusterID].addGate(self.gates[k])
 
 
+        """
+        Dump the cluster details indide ClustersInstances.out
+        """
+        clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
+        for cluster in self.clusters:
+            clusterInstancesStr += str(cluster.id)
+            for k in cluster.gates:
+                clusterInstancesStr += " " + str(cluster.gates[k].name)
+            clusterInstancesStr += "\n"
+        with open('ClustersInstances.out', 'w') as file:
+            file.write(clusterInstancesStr)
+
+
+        """
+        Check the size of each cluster and the distribution of gates across them.
+        """
+        for cluster in self.clusters:
+            print "ClusterID: " + str(cluster.id) + ", de facto total area: " + str(cluster.getGateArea()) + \
+            " (" + str(100*cluster.getGateArea()/self.gatesArea) + "%, normal is " + str(100/len(self.clusters)) + "%)" + \
+            " with " + str(len(cluster.gates)) + " gates (" + str(100*len(cluster.gates)/len(self.gates)) + "%)"
+
+        # TODO export the statistics: area, number of gates
 
 
 
@@ -1182,8 +1223,10 @@ if __name__ == "__main__":
     # Change the working directory to the one created above.
     os.chdir(output_dir)
 
-    for clusteringMethod in ["Naive_Geometric", "random"]:
-        for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
+    for clusteringMethod in ["random"]:
+    # for clusteringMethod in ["Naive_Geometric", "random"]:
+        for clustersTarget in [500]:
+        # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
         # for clustersTarget in [0]:
             print "Clustering method: " + clusteringMethod
             clustering_dir = output_dir + "/" + deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget)
@@ -1225,7 +1268,7 @@ if __name__ == "__main__":
                 # Isn't there a cleaner way to call those functions base on clusteringMethod ?
                 if clusteringMethod == "Naive_Geometric": 
                     design.clusterize()
-                elif clusteringMethod == "random"
+                elif clusteringMethod == "random":
                     design.randomClusterize(clustersTarget)
             design.clusterConnectivity()
 
