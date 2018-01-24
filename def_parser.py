@@ -1118,7 +1118,7 @@ def extractStdCells():
 
     for file in os.listdir(lefdir):
         if file.endswith(".lef"):
-            with open(lefdir+file, 'r') as f:
+            with open(os.path.join(lefdir,file), 'r') as f:
                 line = f.readline()
                 while line:
 
@@ -1228,13 +1228,13 @@ if __name__ == "__main__":
 
     # If you change the deffile, also change the leffile, MEMORY_MACROS and UNITS_DISTANCE_MICRONS
     # TODO make this into cli parameter
-    deffile = "7nm_Jul2017/ldpc.def"
-    # deffile = "7nm_Jul2017/BoomCore.def"
+    # deffile = "7nm_Jul2017/ldpc.def"
+    deffile = "7nm_Jul2017/BoomCore.def"
     # deffile = "7nm_Jul2017/flipr.def"
     # deffile = "7nm_Jul2017/ldpc_fromGAtech_N07.def"
     # deffile = "7nm_Jul2017/ccx.def"
     # deffile = "7nm_Jul2017/SPC/spc.def" # Don't forget to turn the MEMORY_MACROS on.
-    deffile = rootDir + "/" + deffile
+    deffile = os.path.join(rootDir, deffile)
 
     # Change the working directory to the one created above.
     os.chdir(output_dir)
@@ -1245,7 +1245,7 @@ if __name__ == "__main__":
         for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
         # for clustersTarget in [0]:
             print "Clustering method: " + clusteringMethod
-            clustering_dir = output_dir + "/" + deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget)
+            clustering_dir = os.path.join(output_dir, deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget))
 
             print "Clustering directory: " + clustering_dir
 
