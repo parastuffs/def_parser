@@ -374,6 +374,21 @@ class Design:
                                     baseIndex += 1
                                 # print netDetailsSplit
                                 # print net.name
+                                
+                                # Now check if we have a net extension (see 'routingPoints extValue' in doc)
+                                # We only need to do this for the first coordinates (x1 y1)
+                                if netDetailsSplit[baseIndex+5] != ")":
+                                    # There is a net extension. Delete it.
+                                    del netDetailsSplit[baseIndex+5]
+
+                                # Now if there is a MASK statement between two coordinates, trash it.
+                                if "MASK" in netDetailsSplit:
+                                    for i in range(len(netDetailsSplit)):
+                                        if netDetailsSplit[i] == "MASK":
+                                            # "MASK" is always followed by an integer. Trash it alongside.
+                                            del netDetailsSplit[i:i+2]
+                                            break
+
                                 x1 = int(netDetailsSplit[baseIndex+3])
                                 y1 = int(netDetailsSplit[baseIndex+4])
                                 if netDetailsSplit[baseIndex+6] == '(':
@@ -1091,9 +1106,9 @@ def extractStdCells():
     """
 
     # leffile = "/home/para/dev/def_parser/lef/N07_7.5TMint_7.5TM2_M1open.lef"
-    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/"
+    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/" # flipr, boomcore, ldpc
     # lefdir = "/home/para/dev/def_parser/lef/"
-    # lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/"
+    # lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/" # ccx, spc
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
     areaFound = False
@@ -1211,6 +1226,7 @@ if __name__ == "__main__":
         extractMemoryMacros(14,4)
     # exit()
 
+    # If you change the deffile, also change the leffile, MEMORY_MACROS and UNITS_DISTANCE_MICRONS
     # TODO make this into cli parameter
     deffile = "7nm_Jul2017/ldpc.def"
     # deffile = "7nm_Jul2017/BoomCore.def"
@@ -1225,8 +1241,8 @@ if __name__ == "__main__":
 
     for clusteringMethod in ["random"]:
     # for clusteringMethod in ["Naive_Geometric", "random"]:
-        for clustersTarget in [500]:
-        # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
+        # for clustersTarget in [500]:
+        for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
         # for clustersTarget in [0]:
             print "Clustering method: " + clusteringMethod
             clustering_dir = output_dir + "/" + deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget)
