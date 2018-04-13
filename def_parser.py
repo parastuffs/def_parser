@@ -32,7 +32,7 @@ MEMORY_MACROS = False
 # Factor in def file.
 # TODO this should be extracted from the .def
 # UNITS_DISTANCE_MICRONS = 1000 #SPC,CCX
-UNITS_DISTANCE_MICRONS = 10000 #flipr, BoomCore, LDPC
+UNITS_DISTANCE_MICRONS = 10000 #  flipr, BoomCore, LDPC
 
 output_dir = ""
 
@@ -99,14 +99,14 @@ def heapSort(arr, cloneArr):
 
 class Design:
     def __init__(self):
-        self.nets = []        # List of Net objects
+        self.nets = dict()        # Dictionary of Net objects, key: net name
         self.gates = dict()
         self.pins = dict()        # List of Pin objects
         self.area = 0
         self.gatesArea = 0
         self.width = 0
         self.height = 0
-        self.clusters = [] # List of cluster objects
+        self.clusters = dict() # dictionary of cluster objects. Key: cluster id
         self.totalWireLength = 0
         self.totalInterClusterWL = 0
 
@@ -307,7 +307,7 @@ class Design:
                         # Read the next line after the net name,
                         # it should contain the connected cells names.
                         netDetails = f.readline()
-                        while not 'ROUTED' in netDetails and not ';' in netDetails:
+                        while not 'ROUTED' in netDetails and not ';' in netDetails and not 'PROPERTY' in netDetails:
 
                             if "NONDEFAULTRULE" in netDetails:
                                 # Some net use specific rules for spacing and track width.
@@ -332,7 +332,7 @@ class Design:
                                     gate = self.gates.get(gateBlockSplit[1])
                                     if gate == None:
                                         # This is not a normal situation. Debug.
-                                        print "gateblock; " + str(gateBlock)
+                                        print "gateblock: " + str(gateBlock)
                                         print "netdetails: " + str(netDetails)
                                         print "Gate we are trying to add: '" + str(gateBlockSplit[1]) + "'"
                                         print "For the net: " + str(net.name)
@@ -444,7 +444,8 @@ class Design:
     def sortNets(self):
         netLengths = []
         netNames = []
-        for net in self.nets:
+        for k in self.nets:
+            net = self.nets[k]
             netLengths.append(net.wl)
             netNames.append(net.name)
 
@@ -511,7 +512,7 @@ class Design:
 
                 # TODO change the cluster.origin into some sort of point object.
                 newCluster = Cluster(newClusterWidth, newClusterHeight, newClusterWidth*newClusterHeight, [originX, originY], count)
-                self.clusters.append(newCluster)
+                self.clusters[newCluster.id] = newCluster
                 # print newClusterWidth*newClusterHeight
                 clusterListStr += str(newCluster.id) + "\n"
 
@@ -530,7 +531,8 @@ class Design:
 
         # Check for overshoot, clusters outside of design space.
         totalClustersArea = 0
-        for cluster in self.clusters:
+        for ck in self.clusters:
+            cluster = self.clusters[ck]
             # print str(cluster.id) + ", " + str(cluster.origin) + ", width: " + str(cluster.width) + ", height: " + str(cluster.height)
             totalClustersArea += cluster.width * cluster.height
             if cluster.origin[0] + cluster.width > self.width:
@@ -553,7 +555,8 @@ class Design:
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
         gateKeys = self.gates.keys() # Dump keys from the gates dictionary
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
-        for cluster in self.clusters:
+        for ck in self.clusters:
+            cluster = self.clusters[ck]
             i = 0
             gateKeysNotPlaced = [] # Keys of the gates that have not be placed into a cluster yet.
             clusterGateArea = 0 # Cumulated area of the gates in the cluster
@@ -608,7 +611,7 @@ class Design:
             # TODO What will be the impact of the fact that the cluster has no geometrical meaning, now?
             # What should I put for the coordinates?
             newCluster = Cluster(0, 0, 0, [0, 0], x)
-            self.clusters.append(newCluster)
+            self.clusters[newCluster.id] = newCluster
             clusterListStr += str(newCluster.id) + "\n"
         clustersTotal = len(self.clusters)
 
@@ -621,7 +624,7 @@ class Design:
         For each gate in the design, choose a random cluster.
         """
         for k in self.gates:
-            clusterID = int(random.uniform(0, len(self.clusters)))
+            clusterID = random.choice(self.clusters.keys())
             self.gates[k].addCluster(self.clusters[clusterID])
             self.clusters[clusterID].setGateArea(self.clusters[clusterID].getGateArea() + self.gates[k].getArea())
             self.clusters[clusterID].addGate(self.gates[k])
@@ -631,7 +634,8 @@ class Design:
         Dump the cluster details indide ClustersInstances.out
         """
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
-        for cluster in self.clusters:
+        for ck in self.clusters:
+            cluster = self.clusters[ck]
             clusterInstancesStr += str(cluster.id)
             for k in cluster.gates:
                 clusterInstancesStr += " " + str(cluster.gates[k].name)
@@ -643,7 +647,8 @@ class Design:
         """
         Check the size of each cluster and the distribution of gates across them.
         """
-        for cluster in self.clusters:
+        for ck in self.clusters:
+            cluster = self.clusters[ck]
             print "ClusterID: " + str(cluster.id) + ", de facto total area: " + str(cluster.getGateArea()) + \
             " (" + str(100*cluster.getGateArea()/self.gatesArea) + "%, normal is " + str(100/len(self.clusters)) + "%)" + \
             " with " + str(len(cluster.gates)) + " gates (" + str(100*len(cluster.gates)/len(self.gates)) + "%)"
@@ -678,7 +683,7 @@ class Design:
 
             cluster.setGateArea(area) # Same as the cluster area in this case.
 
-            self.clusters.append(cluster)
+            self.clusters[cluster.id] = cluster
 
             self.gates[key].addCluster(cluster)
 
@@ -694,6 +699,131 @@ class Design:
             file.write(clusterListStr)
 
         # Dump cluster instances
+        with open('ClustersInstances.out', 'w') as file:
+            file.write(clusterInstancesStr)
+
+
+
+
+
+
+
+    def progressiveWireLength(self, objective):
+        """
+        Create <objective> clusters.
+        """
+        print "Clusterizing..."
+        global clustersTotal
+
+        # First, create sorted list of net length and name.
+        netLengths = []
+        netNames = []
+        for k in self.nets:
+            net = self.nets[k]
+            netLengths.append(net.wl)
+            netNames.append(net.name)
+        heapSort(netLengths, netNames)
+
+
+        # Create the basic clusters containing only one gate.
+        for i, key in enumerate(self.gates.keys()):
+            width = self.gates[key].width
+            height = self.gates[key].height
+            area = self.gates[key].getArea()
+            origin = [self.gates[key].x, self.gates[key].y]
+            identifier = i
+
+            cluster = Cluster(width, height, area, origin, identifier)
+
+            cluster.addGate(self.gates[key])
+
+            cluster.setGateArea(area) # Same as the cluster area in this case.
+
+            self.clusters[cluster.id] = cluster
+
+            self.gates[key].addCluster(cluster)
+
+        clustersTotal = len(self.clusters)
+
+        while clustersTotal > objective and len(netNames) > 0:
+            # Select the shortest net.
+            net = self.nets[netNames[0]]
+
+            # Check that <net> is not entirely contained inside a single cluster.
+            # This is not handled the most efficient way, but it sure is easy.
+            singleCluster = True
+            netClusters = Set()
+            for k in net.gates:
+                gate = net.gates[k]
+                netClusters.add(gate.cluster.id)
+            if len(netClusters) > 1:
+                singleCluster = False
+
+            # Net already in a single cluster, remove it and consider the next one.
+            if singleCluster:
+                del netNames[0]
+                del netLengths[0]
+                continue
+
+            clusterBase = None
+            # Merge all the clusters connected by the net.
+            for i, key in enumerate(net.gates):
+                gate = net.gates[key]
+                # First gate's cluster will serve as recipient for ther merger
+                if i == 0:
+                    # Get the cluster.
+                    clusterBase = gate.cluster
+                # If the gate if already in the base cluster, skip it.
+                elif clusterBase.id == gate.cluster.id:
+                    continue
+                else:
+                    clusterToMerge = gate.cluster
+                    # for each gate in the net, identify the corresponding cluster.
+                    for keyToMerge in clusterToMerge.gates:
+                        gateToMerge = clusterToMerge.gates[keyToMerge]
+                    # for each gate in the cluster, add it to the recipient cluster.
+                        clusterBase.addGate(gateToMerge)
+                    # Change the cluster object reference inside the gate object.
+                        gateToMerge.cluster = clusterBase
+                    # Change the cluster area.
+                    clusterBase.setGateArea(clusterBase.getGateArea() + clusterToMerge.getGateArea())
+                    clusterBase.area = clusterBase.getGateArea()
+                    # Remove the cluster from the Design list.
+                    # If it's not in the dictionary, it simply means it was deleted in a previous step.
+                    if clusterToMerge.id in self.clusters.keys():
+                        del self.clusters[clusterToMerge.id]
+            clustersTotal = len(self.clusters)
+            # print "Current count: " + str(clustersTotal) + ", objective: " + str(objective)
+
+            # Once added, remove the net from the list.
+            # That way, the first net in the list is always the shortest.
+            del netNames[0]
+            del netLengths[0]
+
+        clusterListStr = ""
+        clusterInstancesStr = ""
+
+        # Change the cluster IDs so that there is no gap.
+        clusterKeys = self.clusters.keys()
+        for i, k in enumerate(clusterKeys):
+            cluster = self.clusters[k]
+            cluster.id = i
+            self.clusters[i] = cluster
+            clusterListStr += str(cluster.id) + "\n"
+            clusterInstancesStr += str(cluster.id)
+            for gk in cluster.gates:
+                gate = cluster.gates[gk]
+                clusterInstancesStr += " " + str(gate.name)
+            clusterInstancesStr += "\n"
+            # I only want to keep keys [0, clustersTotal - 1]
+            if k >= clustersTotal:
+                del self.clusters[k]
+
+
+        print "Dumping Clusters.out"
+        with open("Clusters.out", 'w') as file:
+            file.write(clusterListStr)
+
         with open('ClustersInstances.out', 'w') as file:
             file.write(clusterInstancesStr)
 
@@ -727,15 +857,13 @@ class Design:
 
         spaningNetsUnique = dict() # This dicitonary contains all the nets that span over more than one cluster. The difference with the other dictionaries is that this one contains each net only once. This will be used to compute the total inter-cluster wirelength.
 
-        # TODO Store the files in a seperate folder depending on the clustering.
-        clusterAreaOut = "Name Type InstCount Boundary Area\n" # Clusters info to dump into 'ClustersArea.out'
-
-        for cluster in self.clusters:
+        for ck in self.clusters:
+            cluster = self.clusters[ck]
             connectivity[cluster.id] = []
             connectivityUniqueNet[cluster.id] = []
             clusterNetSet[cluster.id] = Set()
             clusterGateArea = 0 # Cumulated area of the gates in the cluster
-            print "Source cluster: " + str(cluster.id)
+            # print "Source cluster: " + str(cluster.id)
             for key in cluster.gates:
                 gateName = cluster.gates[key].name
                 for netKey in cluster.gates[key].nets:
@@ -766,19 +894,6 @@ class Design:
                                             if spaningNetsUnique.get(netKey) == None:
                                                 # If the net is not registered as spaning over several clusters, add it.
                                                 spaningNetsUnique[netKey] = net
-
-            # Set the line corresponding to this cluster for the information dumping into clustersArea.out
-            clusterAreaOut += str(cluster.id) + " " + "exclusive" + " " + str(len(cluster.gates)) + " " + \
-                            "(" + str(cluster.origin[0]) + "," + str(cluster.origin[1]) + ")" + " " + \
-                            "(" + str(cluster.origin[0] + cluster.width) + "," + \
-                            str(cluster.origin[1] + cluster.height) + ")" + " " + \
-                            str(cluster.getGateArea()) + "\n"
-
-
-        print "Dumping ClustersArea.out"
-        with open("ClustersArea.out", 'w') as file:
-            file.write(clusterAreaOut)
-
 
         """
         This a very primitive connectivity metric.
@@ -864,11 +979,13 @@ class Design:
         print "Computing intra-cluster connectivity"
         connectivityIntra = dict()
         # Dictionary init
-        for cluster in self.clusters:
+        for ck in self.clusters:
+            cluster = self.clusters[ck]
             connectivityIntra[cluster.id] = []
 
 
-        for net in self.nets:
+        for k in self.nets:
+            net = self.nets[k]
             clusterID = -1 # Begin with '-1' to mark the fact that we are looking at the first gate of the net.
             discardNet = False
             for key in net.gates:
@@ -909,6 +1026,26 @@ class Design:
         print "Inter-cluster nets: " + str(len(spaningNetsUnique)) + ", which is " + str(len(spaningNetsUnique) * 100 / len(self.nets)) + "% of the total amount of nets."
 
 
+    def clusterArea(self):
+        # TODO Store the files in a seperate folder depending on the clustering.
+        clusterAreaOut = "Name Type InstCount Boundary Area\n" # Clusters info to dump into 'ClustersArea.out'
+
+        clusterKeys = self.clusters.keys()
+        for ck in clusterKeys:
+            cluster = self.clusters[ck]
+            # Set the line corresponding to this cluster for the information dumping into clustersArea.out
+            clusterAreaOut += str(cluster.id) + " " + "exclusive" + " " + str(len(cluster.gates)) + " " + \
+                            "(" + str(cluster.origin[0]) + "," + str(cluster.origin[1]) + ")" + " " + \
+                            "(" + str(cluster.origin[0] + cluster.width) + "," + \
+                            str(cluster.origin[1] + cluster.height) + ")" + " " + \
+                            str(cluster.getGateArea()) + "\n"
+
+
+        print "Dumping ClustersArea.out"
+        with open("ClustersArea.out", 'w') as file:
+            file.write(clusterAreaOut)
+
+
 
     def setWidth(self, width):
         self.width = width
@@ -929,7 +1066,7 @@ class Design:
 
     def addNet(self, net):
         # TODO: check if net is a Net object
-        self.nets.append(net)
+        self.nets[net.name] = net
 
     def getAspectRatio(self):
         return self.width/self.height
@@ -1093,10 +1230,9 @@ class Cluster:
 ##     ##      ##      ##    ##   ##     ##  ##         ##         ##         
  #######       ##      ######      #######   #########  #########  #########  
 
-def extractStdCells():
+def extractStdCells(tech):
     """
-    This function should be given a .lef file from which it will extract information on
-    the standard cells of the library.
+    @tech: 7nm|45nm
 
     Area: the area is given in the first few lines of the definition.
     e.g. 
@@ -1106,9 +1242,12 @@ def extractStdCells():
     """
 
     # leffile = "/home/para/dev/def_parser/lef/N07_7.5TMint_7.5TM2_M1open.lef"
-    lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/" # flipr, boomcore, ldpc
     # lefdir = "/home/para/dev/def_parser/lef/"
-    # lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/" # ccx, spc
+    if tech == "7nm":
+        lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/" # flipr, boomcore, ldpc
+    elif tech == "45nm":
+        lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/" # ccx, spc
+    
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
     areaFound = False
@@ -1221,29 +1360,33 @@ if __name__ == "__main__":
             raise
 
 
-    extractStdCells()
+    extractStdCells("7nm")
+    # extractStdCells("45nm")
     if MEMORY_MACROS:
         extractMemoryMacros(14,4)
     # exit()
 
     # If you change the deffile, also change the leffile, MEMORY_MACROS and UNITS_DISTANCE_MICRONS
     # TODO make this into cli parameter
-    # deffile = "7nm_Jul2017/ldpc.def"
-    deffile = "7nm_Jul2017/BoomCore.def"
+    deffile = "7nm_Jul2017/ldpc.def"
+    # deffile = "7nm_Jul2017/BoomCore.def"
     # deffile = "7nm_Jul2017/flipr.def"
     # deffile = "7nm_Jul2017/ldpc_fromGAtech_N07.def"
     # deffile = "7nm_Jul2017/ccx.def"
     # deffile = "7nm_Jul2017/SPC/spc.def" # Don't forget to turn the MEMORY_MACROS on.
+    # deffile = "ldpc_4x4_serial.def/ldpc-4x4-serial.def"
+    # deffile = "ldpc_4x4/ldpc-4x4.def"
     deffile = os.path.join(rootDir, deffile)
 
     # Change the working directory to the one created above.
     os.chdir(output_dir)
 
-    for clusteringMethod in ["random"]:
-    # for clusteringMethod in ["Naive_Geometric", "random"]:
+    for clusteringMethod in ["progressive-wl"]:
+    # for clusteringMethod in ["random"]:
+    # for clusteringMethod in ["Naive_Geometric"]:
         # for clustersTarget in [500]:
-        for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
-        # for clustersTarget in [0]:
+        # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
+        for clustersTarget in [10000]:
             print "Clustering method: " + clusteringMethod
             clustering_dir = os.path.join(output_dir, deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget))
 
@@ -1284,9 +1427,13 @@ if __name__ == "__main__":
                 # Isn't there a cleaner way to call those functions base on clusteringMethod ?
                 if clusteringMethod == "Naive_Geometric": 
                     design.clusterize()
+                    design.clusterConnectivity()
                 elif clusteringMethod == "random":
                     design.randomClusterize(clustersTarget)
-            design.clusterConnectivity()
+                    design.clusterConnectivity()
+                elif clusteringMethod == "progressive-wl":
+                    design.progressiveWireLength(clustersTarget)
+            design.clusterArea()
 
 
 
