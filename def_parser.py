@@ -1,3 +1,20 @@
+"""
+Usage:
+    def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
+                    [CLUSTER_AMOUNT ...]
+    def_parser.py (--help|-h)
+
+Options:
+    --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
+                            ccx, ldpc-4x4-serial or ldpc-4x4.
+    --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random or
+                            Naive_Geometric. [default: random]
+    --seed=<seed>           RNG seed
+    CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
+    -h --help               Print this help
+"""
+
+
 from __future__ import division # http://stackoverflow.com/questions/1267869/how-can-i-force-division-to-be-floating-point-division-keeps-rounding-down-to-0
 from PIL import Image
 from math import *
@@ -8,6 +25,7 @@ import os
 import datetime
 import errno
 import random
+from docopt import docopt
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
@@ -793,7 +811,7 @@ class Design:
                     if clusterToMerge.id in self.clusters.keys():
                         del self.clusters[clusterToMerge.id]
             clustersTotal = len(self.clusters)
-            # print "Current count: " + str(clustersTotal) + ", objective: " + str(objective)
+            print "Current count: " + str(clustersTotal) + ", objective: " + str(objective)
 
             # Once added, remove the net from the list.
             # That way, the first net in the list is always the shortest.
@@ -1341,9 +1359,61 @@ def extractMemoryMacros(hrows, frows):
 
 
 if __name__ == "__main__":
-    print "Hello World!"
 
-    if RANDOM_SEED == 0:
+    stdCellsTech = ""
+    clusteringMethod = "random"
+    clustersTargets = []
+
+    args = docopt(__doc__)
+    print args
+    if args["--design"] == "ldpc":
+        deffile = "7nm_Jul2017/ldpc.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "flipr":
+        deffile = "7nm_Jul2017/flipr.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "boomcore":
+        deffile = "7nm_Jul2017/BoomCore.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "ldpc-4x4-serial":
+        deffile = "ldpc_4x4_serial.def/ldpc-4x4-serial.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "ldpc-4x4":
+        deffile = "ldpc_4x4/ldpc-4x4.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "ccx":
+        deffile = "7nm_Jul2017/ccx.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 1000
+        stdCellsTech = "45nm"
+    elif args["--design"] == "spc":
+        deffile = "7nm_Jul2017/SPC/spc.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 1000
+        stdCellsTech = "45nm"
+
+    if args["--clust-meth"]:
+        clusteringMethod = args["--clust-meth"]
+
+    if args["CLUSTER_AMOUNT"]:
+        for n in args["CLUSTER_AMOUNT"]:
+            clustersTargets.append(int(n))
+    else:
+        clustersTargets = [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000]
+
+    if args["--seed"]:
+        RANDOM_SEED = args["--seed"]
+    else:
         RANDOM_SEED = random.random()
     random.seed(RANDOM_SEED)
     print "Seed: " + str(RANDOM_SEED)
@@ -1360,80 +1430,67 @@ if __name__ == "__main__":
             raise
 
 
-    extractStdCells("7nm")
-    # extractStdCells("45nm")
+    extractStdCells(stdCellsTech)
     if MEMORY_MACROS:
         extractMemoryMacros(14,4)
     # exit()
 
-    # If you change the deffile, also change the leffile, MEMORY_MACROS and UNITS_DISTANCE_MICRONS
-    # TODO make this into cli parameter
-    deffile = "7nm_Jul2017/ldpc.def"
-    # deffile = "7nm_Jul2017/BoomCore.def"
-    # deffile = "7nm_Jul2017/flipr.def"
-    # deffile = "7nm_Jul2017/ldpc_fromGAtech_N07.def"
-    # deffile = "7nm_Jul2017/ccx.def"
-    # deffile = "7nm_Jul2017/SPC/spc.def" # Don't forget to turn the MEMORY_MACROS on.
-    # deffile = "ldpc_4x4_serial.def/ldpc-4x4-serial.def"
-    # deffile = "ldpc_4x4/ldpc-4x4.def"
     deffile = os.path.join(rootDir, deffile)
 
     # Change the working directory to the one created above.
     os.chdir(output_dir)
 
-    for clusteringMethod in ["progressive-wl"]:
-    # for clusteringMethod in ["random"]:
-    # for clusteringMethod in ["Naive_Geometric"]:
-        # for clustersTarget in [500]:
-        # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
-        for clustersTarget in [10000]:
-            print "Clustering method: " + clusteringMethod
-            clustering_dir = os.path.join(output_dir, deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget))
+    # for clustersTarget in [500]:
+    # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
+    # for clustersTarget in [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000]:
+    for clustersTarget in clustersTargets:
+        print "Clustering method: " + clusteringMethod
+        clustering_dir = os.path.join(output_dir, deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget))
 
-            print "Clustering directory: " + clustering_dir
+        print "Clustering directory: " + clustering_dir
 
-            try:
-                os.makedirs(clustering_dir)
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise
+        try:
+            os.makedirs(clustering_dir)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
 
-            # Change the working directory to clustering dir.
-            os.chdir(clustering_dir)
+        # Change the working directory to clustering dir.
+        os.chdir(clustering_dir)
 
 
-            # TODO Why on Earth would I re-read the design as a whole for each
-            # clustering method ? It's always the same, it never changes.
-            # The only thing that changes is the clustering inside the Design
-            # object. It's not critical at the moment, as the clustering is
-            # by far the longest part of the execution, but still.
+        # TODO Why on Earth would I re-read the design as a whole for each
+        # clustering method ? It's always the same, it never changes.
+        # The only thing that changes is the clustering inside the Design
+        # object. It's not critical at the moment, as the clustering is
+        # by far the longest part of the execution, but still.
 
-            design = Design()
-            design.ReadArea()
-            design.ExtractCells()
-            # design.Digest()
-            design.extractPins()
-            # design.Digest()
+        design = Design()
+        design.ReadArea()
+        design.ExtractCells()
+        # design.Digest()
+        design.extractPins()
+        # design.Digest()
 
-            design.extractNets()
-            design.sortNets()
-            design.Digest()
+        design.extractNets()
+        design.sortNets()
+        design.Digest()
 
-            print design.width * design.height
+        print design.width * design.height
 
-            if clustersTarget == 0:
-                design.clusterizeOneToOne()
-            else:
-                # Isn't there a cleaner way to call those functions base on clusteringMethod ?
-                if clusteringMethod == "Naive_Geometric": 
-                    design.clusterize()
-                    design.clusterConnectivity()
-                elif clusteringMethod == "random":
-                    design.randomClusterize(clustersTarget)
-                    design.clusterConnectivity()
-                elif clusteringMethod == "progressive-wl":
-                    design.progressiveWireLength(clustersTarget)
-            design.clusterArea()
+        if clustersTarget == 0:
+            design.clusterizeOneToOne()
+        else:
+            # Isn't there a cleaner way to call those functions base on clusteringMethod ?
+            if clusteringMethod == "Naive_Geometric": 
+                design.clusterize()
+                design.clusterConnectivity()
+            elif clusteringMethod == "random":
+                design.randomClusterize(clustersTarget)
+                design.clusterConnectivity()
+            elif clusteringMethod == "progressive-wl":
+                design.progressiveWireLength(clustersTarget)
+        design.clusterArea()
 
 
 
