@@ -733,6 +733,15 @@ class Design:
         print "Clusterizing..."
         global clustersTotal
 
+        # Stop point for the clustering, the area disblanced limit has been reached.
+        criticalRatioReached = False
+        criticalRatio = 0.6
+
+
+
+        # Ratio objective/clustersTotal. Must be in increasing order.
+        checkpoints = [0.1, 0.12, 0.15, 0.18, 0.2, 0.22, 0.25, 0.28, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9]
+
         # First, create sorted list of net length and name.
         netLengths = []
         netNames = []
@@ -763,7 +772,7 @@ class Design:
 
         clustersTotal = len(self.clusters)
 
-        while clustersTotal > objective and len(netNames) > 0:
+        while (clustersTotal > objective and len(netNames) > 0 and not criticalRatioReached) :
             # Select the shortest net.
             net = self.nets[netNames[0]]
 
@@ -811,7 +820,12 @@ class Design:
                     if clusterToMerge.id in self.clusters.keys():
                         del self.clusters[clusterToMerge.id]
             clustersTotal = len(self.clusters)
-            print "Current count: " + str(clustersTotal) + ", objective: " + str(objective)
+            if round(objective/clustersTotal, 2) in checkpoints:
+                balance = self.checkBalancable(self.clusters)
+                print "Checkpoint: " + str(round(objective/clustersTotal, 2)) + " Current count: " + str(clustersTotal) + ", objective: " + str(objective) + ", balance: " + str(balance)
+                del checkpoints[0]
+                if balance >= criticalRatio:
+                    criticalRatioReached = True
 
             # Once added, remove the net from the list.
             # That way, the first net in the list is always the shortest.
@@ -838,12 +852,35 @@ class Design:
                 del self.clusters[k]
 
 
-        print "Dumping Clusters.out"
+        print "Dumping " + str(clustersTotal) + " clusters in Clusters.out"
         with open("Clusters.out", 'w') as file:
             file.write(clusterListStr)
 
         with open('ClustersInstances.out', 'w') as file:
             file.write(clusterInstancesStr)
+
+
+
+    def checkBalancable(self, clusters):
+        """
+        Checks whether or not the cluster list is balancable, i.e. that it can be split into two part of
+        rougly the same area.
+
+        @clusters: dictionary of Cluster objects
+        """
+        part1Area = 0
+        part2Area = 0
+
+        for ck in clusters:
+            i = int(random.uniform(0, 2))
+            if i == 0:
+                part1Area += clusters[ck].area
+            else:
+                part2Area += clusters[ck].area
+        if float(part1Area) / (part1Area + part2Area) >= float(part2Area) / (part1Area + part2Area):
+            return float(part1Area) / (part1Area + part2Area)
+        else:
+            return float(part2Area) / (part1Area + part2Area)
 
      #######   ##         ##     ##   #######   ##########   #######     #####    ##      ##  
     ##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ###     ##  
