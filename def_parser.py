@@ -26,6 +26,7 @@ import datetime
 import errno
 import random
 from docopt import docopt
+import logging, logging.config
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
@@ -129,18 +130,18 @@ class Design:
         self.totalInterClusterWL = 0
 
     def Digest(self):
-        print "Design digest:"
-        print "Width: " + str(self.width)
-        print "Height: " + str(self.height)
-        print "Aspect ratio: " + str(self.width/self.height)
-        print "Nets: " + str(len(self.nets))
-        print "Total wirelength: " + locale.format("%d", self.totalWireLength, grouping=True)
-        print "Gates: " + str(len(self.gates))
+        logger.info("Design digest:")
+        logger.info("Width: {}".format(self.width))
+        logger.info("Height: {}".format(self.height))
+        logger.info("Aspect ratio: {}".format(self.width/self.height))
+        logger.info("Nets: {}".format(len(self.nets)))
+        logger.info("Total wirelength: {}".format(locale.format("%d", self.totalWireLength, grouping=True)))
+        logger.info("Gates: {}".format(len(self.gates)))
 
 
 
     def ReadArea(self):
-        print (str("Reading def file ") + deffile)
+        logger.debug("Reading def file {}".format(deffile))
         with open(deffile, 'r') as f:
             for line in f: # Read the file sequentially
                 if 'DIEAREA' in line:
@@ -159,7 +160,7 @@ class Design:
     #########  ##    ##       ##       #######   #########  #########  #########  
 
     def ExtractCells(self):
-        print "Reading the def to extract cells."
+        logger.debug("Reading the def to extract cells.")
 
         inComponents = False
         endOfComponents = False
@@ -236,9 +237,8 @@ class Design:
         """
         for key in self.gates:
             self.gatesArea += self.gates[key].getArea()
-        print "Total area of the gates: " + str(self.gatesArea) + " (" + str(100*self.gatesArea/self.area) + \
-        "% of total area)"
-        print "Unknown cell encountered: " + str(unknownCellsCounts)
+        logger.debug("Total area of the gates: {} ({}% of total area)".format(self.gatesArea, 100*self.gatesArea/self.area))
+        logger.debug("Unknown cell encountered: {}".format(unknownCellsCounts))
         # exit()
 
 
@@ -251,7 +251,7 @@ class Design:
     #########  ##    ##       ##      ##         ########   ##      ##   #######   
 
     def extractPins(self):
-        print "Reading the def to extract pins."
+        logger.debug("Reading the def to extract pins.")
 
         inPins = False
         endOfPins = False
@@ -294,7 +294,7 @@ class Design:
     #########  ##    ##       ##      ##      ##  #########      ##       #######   
 
     def extractNets(self):
-        print "Reading the def to extract nets."
+        logger.debug("Reading the def to extract nets.")
 
         endOfNet = False # end of single net
         endOfNets = False # end of bloc with all the nets
@@ -350,10 +350,10 @@ class Design:
                                     gate = self.gates.get(gateBlockSplit[1])
                                     if gate == None:
                                         # This is not a normal situation. Debug.
-                                        print "gateblock: " + str(gateBlock)
-                                        print "netdetails: " + str(netDetails)
-                                        print "Gate we are trying to add: '" + str(gateBlockSplit[1]) + "'"
-                                        print "For the net: " + str(net.name)
+                                        logger.debug("gateblock: {}".format(gateBlock))
+                                        logger.debug("netdetails: {}".format(netDetails))
+                                        logger.debug("Gate we are trying to add: '{}'".format(gateBlockSplit[1]))
+                                        logger.debug("For the net: {}".format(net.name))
                                     net.addGate(gate)
                                     gate.addNet(net)
                                     # TODO if gate.name contains '[' or ']', enclose the name between '{}'
@@ -469,7 +469,7 @@ class Design:
 
         heapSort(netLengths, netNames)
         filename = deffile.rsplit('.',1)[0].rsplit('/',1)[1] + "_net_wl.csv"
-        print "Exporting net lengths to " + filename
+        logger.debug("Exporting net lengths to {}".format(filename))
         s = "Net_name net_wire_length cumulated_wire_length %_of_nets\n"
         cumulatedLength = 0
         for i in range(0, len(netLengths)):
@@ -492,7 +492,7 @@ class Design:
 
     def clusterize(self):
         global clustersTotal
-        print "Clusterizing..."
+        logger.info("Clusterizing...")
 
         # The first, naive, implementation is to extract clusters from the design with the same aspect ratio.
         # The area of each cluster is the area of the design divided by the amount of clusters.
@@ -539,11 +539,11 @@ class Design:
                     originX = 0
                     originY += newClusterHeight
 
-        print "Total cluster created: " + str(count)
+        logger.info("Total cluster created: {}".format(count))
         clustersTotal = count
 
         # TODO 'Clusters.out' should be a paramater/argument/global variable?
-        print "Dumping Clusters.out"
+        logger.debug("Dumping Clusters.out")
         with open("Clusters.out", 'w') as file:
             file.write(clusterListStr)
 
@@ -554,14 +554,14 @@ class Design:
             # print str(cluster.id) + ", " + str(cluster.origin) + ", width: " + str(cluster.width) + ", height: " + str(cluster.height)
             totalClustersArea += cluster.width * cluster.height
             if cluster.origin[0] + cluster.width > self.width:
-                print "WARNING: cluster width out of design bounds."
+                logger.warning("WARNING: cluster width out of design bounds.")
             if cluster.origin[1] + cluster.height > self.height:
-                print "WARNING: cluster height out of design bounds:"
-                print "Cluster origin: (" + str(cluster.origin[0]) + ", " + str(cluster.origin[1]) + ")"
-                print "Cluster height: " + str(cluster.height)
-                print "Design height: " + str(self.height)
-                print "Overshoot: " + str(cluster.origin[1] + cluster.height - self.height)
-        print "Total cluster area: " + str(totalClustersArea)
+                logger.warning("WARNING: cluster height out of design bounds:")
+                logger.warning("Cluster origin: ({}, {})".format(cluster.origin[0], cluster.origin[1]))
+                logger.warning("Cluster height: {}".format(cluster.height))
+                logger.warning("Design height: {}".format(self.height))
+                logger.warning("Overshoot: {}".format(cluster.origin[1] + cluster.height - self.height))
+        logger.info("Total cluster area: {}".format(totalClustersArea))
 
 
         """
@@ -605,7 +605,7 @@ class Design:
 
             clusterInstancesStr += "\n"
 
-        print "Total amount of place gates in clusters: " + str(checkClusterGates)
+        logger.debug("Total amount of place gates in clusters: {}".format(checkClusterGates))
 
         # Dump cluster instances
         with open('ClustersInstances.out', 'w') as file:
@@ -633,7 +633,7 @@ class Design:
             clusterListStr += str(newCluster.id) + "\n"
         clustersTotal = len(self.clusters)
 
-        print "Dumping Clusters.out"
+        logger.debug("Dumping Clusters.out")
         with open("Clusters.out", 'w') as file:
             file.write(clusterListStr)
 
@@ -667,9 +667,7 @@ class Design:
         """
         for ck in self.clusters:
             cluster = self.clusters[ck]
-            print "ClusterID: " + str(cluster.id) + ", de facto total area: " + str(cluster.getGateArea()) + \
-            " (" + str(100*cluster.getGateArea()/self.gatesArea) + "%, normal is " + str(100/len(self.clusters)) + "%)" + \
-            " with " + str(len(cluster.gates)) + " gates (" + str(100*len(cluster.gates)/len(self.gates)) + "%)"
+            logger.debug("ClusterID: {}, de facto total area: {} ({}%, normal is {}%) with {} gates ({}%)".format(cluster.id, cluster.getGateArea(), 100*cluster.getGateArea()/self.gatesArea, 100/len(self.clusters), len(cluster.gates), 100*len(cluster.gates)/len(self.gates)))
 
         # TODO export the statistics: area, number of gates
 
@@ -683,7 +681,7 @@ class Design:
         """
         Each cluster is one gate.
         """
-        print "Clusterizing..."
+        logger.info("Clusterizing...")
         global clustersTotal
         clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
@@ -712,7 +710,7 @@ class Design:
         clustersTotal = len(self.gates)
 
         # TODO 'Clusters.out' should be a paramater/argument/global variable?
-        print "Dumping Clusters.out"
+        logger.debug("Dumping Clusters.out")
         with open("Clusters.out", 'w') as file:
             file.write(clusterListStr)
 
@@ -730,7 +728,7 @@ class Design:
         """
         Create <objective> clusters.
         """
-        print "Clusterizing..."
+        logger.info("Clusterizing...")
         global clustersTotal
 
         # Stop point for the clustering, the area disblanced limit has been reached.
@@ -822,7 +820,7 @@ class Design:
             clustersTotal = len(self.clusters)
             if round(objective/clustersTotal, 2) in checkpoints:
                 balance = self.checkBalancable(self.clusters)
-                print "Checkpoint: " + str(round(objective/clustersTotal, 2)) + " Current count: " + str(clustersTotal) + ", objective: " + str(objective) + ", balance: " + str(balance)
+                logger.debug("Checkpoint: {} Current count: {}, objective: {}, balance: {}".format(round(objective/clustersTotal, 2), clustersTotal, objective, balance))
                 del checkpoints[0]
                 if balance >= criticalRatio:
                     criticalRatioReached = True
@@ -852,7 +850,7 @@ class Design:
                 del self.clusters[k]
 
 
-        print "Dumping " + str(clustersTotal) + " clusters in Clusters.out"
+        logger.debug("Dumping {} clusters in Clusters.out".format(clustersTotal))
         with open("Clusters.out", 'w') as file:
             file.write(clusterListStr)
 
@@ -900,7 +898,7 @@ class Design:
                                     # In that case, all clusters are connected to a cluster "0" which corresponds to none cluster ID (they begin at 1).
                                     # If this is true, we go from an O(n^2) algo (loop twice on all clusters) to a O(n).
 
-        print "Establish connectivity"
+        logger.info("Establish connectivity")
         connectivity = dict() # Key: source cluster, values: destination clusters
         connectivityUniqueNet = dict() # Connectivity, but counting only once every net between clusters
 
@@ -955,7 +953,7 @@ class Design:
         So far, we only compute the total amount of connections between two clusters.
         This means that a same net could be counted multiples times as long as it connects different gates.
         """
-        print "Estimating inter-cluster connectivity and exporting it to file inter_cluster_connectivity_" + str(clustersTotal) + ".csv"
+        logger.info("Estimating inter-cluster connectivity and exporting it to file inter_cluster_connectivity_{}.csv".format(clustersTotal))
         s = ""
         for key in connectivity:
             s += str(key) + "," + str(len(connectivity[key]))
@@ -967,7 +965,7 @@ class Design:
 
 
         if not RAW_INTERCONNECTIONS:
-            print "Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv"
+            logger.info("Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix_{}.csv".format(clustersTotal))
             """
             I want a matrix looking like
 
@@ -1015,7 +1013,7 @@ class Design:
 
 
 
-        print "Processing inter-cluster connectivity without duplicate nets, exporting to inter_cluster_connectivity_unique_nets_" + str(clustersTotal) + ".csv."
+        logger.info("Processing inter-cluster connectivity without duplicate nets, exporting to inter_cluster_connectivity_unique_nets_{}.csv.".format(clustersTotal))
         s = ""
         for key in connectivityUniqueNet:
             s += str(key) + "," + str(len(connectivityUniqueNet[key]))
@@ -1031,7 +1029,7 @@ class Design:
         """
         Intra-cluster connectivity
         """
-        print "Computing intra-cluster connectivity"
+        logger.info("Computing intra-cluster connectivity")
         connectivityIntra = dict()
         # Dictionary init
         for ck in self.clusters:
@@ -1063,7 +1061,7 @@ class Design:
 
 
 
-        print "Processing intra-cluster connectivity, exporting to intra_cluster_connectivity_" + str(clustersTotal) + ".csv."
+        logger.info("Processing intra-cluster connectivity, exporting to intra_cluster_connectivity_{}.csv.".format(clustersTotal))
         s = ""
         for key in connectivityIntra:
             s += str(key) + "," + str(len(connectivityIntra[key]))
@@ -1077,8 +1075,8 @@ class Design:
 
         for key in spaningNetsUnique:
             self.totalInterClusterWL += spaningNetsUnique[key].wl
-        print "Total inter-cluster wirelength: " + locale.format("%d", self.totalInterClusterWL, grouping=True) + ", which is " + str(self.totalInterClusterWL*100/self.totalWireLength) + "% of the total wirelength."
-        print "Inter-cluster nets: " + str(len(spaningNetsUnique)) + ", which is " + str(len(spaningNetsUnique) * 100 / len(self.nets)) + "% of the total amount of nets."
+        logger.info("Total inter-cluster wirelength: {}, which is {}% of the total wirelength.".format(locale.format("%d", self.totalInterClusterWL, grouping=True), self.totalInterClusterWL*100/self.totalWireLength))
+        logger.info("Inter-cluster nets: {}, which is {}% of the total amount of nets.".format(len(spaningNetsUnique), len(spaningNetsUnique) * 100 / len(self.nets)))
 
 
     def clusterArea(self):
@@ -1096,7 +1094,7 @@ class Design:
                             str(cluster.getGateArea()) + "\n"
 
 
-        print "Dumping ClustersArea.out"
+        logger.info("Dumping ClustersArea.out")
         with open("ClustersArea.out", 'w') as file:
             file.write(clusterAreaOut)
 
@@ -1203,7 +1201,7 @@ class Gate:
         return self.stdCell
 
     def digest(self):
-        print "Gate " + self.name + " at (" + str(self.x) + ", " + str(self.y) + ")"
+        logger.info("Gate {} at ({}, {})".format(self.name, self.x, self.y))
 
     def getArea(self):
         return self.width * self.height
@@ -1241,7 +1239,7 @@ class Pin:
         self.y = y
 
     def digest(self):
-        print "Pin " + self.name + " at (" + str(self.x) + ", " + str(self.y) + ")"
+        logger.info("Pin {} at ({}, {})".format(self.name, self.x, self.y))
 
 
 
@@ -1397,12 +1395,36 @@ def extractMemoryMacros(hrows, frows):
 
 if __name__ == "__main__":
 
+    # Create the directory for the output.
+    rootDir = os.getcwd()
+    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "/"
+
+    try:
+        os.makedirs(output_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+    # Load base config from conf file.
+    logging.config.fileConfig('log.conf')
+    # Load logger from config
+    logger = logging.getLogger('default')
+    # Create new file handler
+    fh = logging.FileHandler(os.path.join(output_dir, 'def_parser_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.log'))
+    # Set a format for the file handler
+    fh.setFormatter(logging.Formatter('%(asctime)s: %(message)s'))
+    # Add the handler to the logger
+    logger.addHandler(fh)
+    
+    logger.info("Working inside {}".format(output_dir))
+
+
     stdCellsTech = ""
     clusteringMethod = "random"
     clustersTargets = []
 
     args = docopt(__doc__)
-    print args
+    logger.debug(args)
     if args["--design"] == "ldpc":
         deffile = "7nm_Jul2017/ldpc.def"
         MEMORY_MACROS = False
@@ -1453,18 +1475,7 @@ if __name__ == "__main__":
     else:
         RANDOM_SEED = random.random()
     random.seed(RANDOM_SEED)
-    print "Seed: " + str(RANDOM_SEED)
-
-    # Create the directory for the output.
-    rootDir = os.getcwd()
-    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "/"
-    print "Working inside " + output_dir
-
-    try:
-        os.makedirs(output_dir)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
+    logger.info("Seed: {}".format(RANDOM_SEED))
 
 
     extractStdCells(stdCellsTech)
@@ -1481,10 +1492,10 @@ if __name__ == "__main__":
     # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
     # for clustersTarget in [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000]:
     for clustersTarget in clustersTargets:
-        print "Clustering method: " + clusteringMethod
+        logger.info("Clustering method: {}".format(clusteringMethod))
         clustering_dir = os.path.join(output_dir, deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget))
 
-        print "Clustering directory: " + clustering_dir
+        logger.info("Clustering directory: {}".format(clustering_dir))
 
         try:
             os.makedirs(clustering_dir)
@@ -1513,7 +1524,7 @@ if __name__ == "__main__":
         design.sortNets()
         design.Digest()
 
-        print design.width * design.height
+        logger.debug(design.width * design.height)
 
         if clustersTarget == 0:
             design.clusterizeOneToOne()
