@@ -7,8 +7,8 @@ Usage:
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
                             ccx, ldpc-4x4-serial or ldpc-4x4.
-    --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random or
-                            Naive_Geometric. [default: random]
+    --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
+                            Naive_Geometric or hierarchical-geometric. [default: random]
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     -h --help               Print this help
@@ -54,6 +54,8 @@ MEMORY_MACROS = False
 UNITS_DISTANCE_MICRONS = 10000 #  flipr, BoomCore, LDPC
 
 output_dir = ""
+
+logger = logging.getLogger('default')
 
 
 
@@ -562,8 +564,12 @@ class Design:
                 logger.warning("Design height: {}".format(self.height))
                 logger.warning("Overshoot: {}".format(cluster.origin[1] + cluster.height - self.height))
         logger.info("Total cluster area: {}".format(totalClustersArea))
+        self.populateGeometricClusters()
+
+        
 
 
+    def populateGeometricClusters(self):
         """
         And now, find out wich gates are in each cluster.
         If the origin of a gate is in a cluster, it belongs to that cluster.
@@ -605,11 +611,138 @@ class Design:
 
             clusterInstancesStr += "\n"
 
-        logger.debug("Total amount of place gates in clusters: {}".format(checkClusterGates))
+        logger.debug("Total amount of place gates in clusters: {} out of {}".format(checkClusterGates, len(self.gates)))
 
         # Dump cluster instances
         with open('ClustersInstances.out', 'w') as file:
             file.write(clusterInstancesStr)
+
+
+
+    def splitDesign(self, power, baseCluster):
+        """
+        @baseCluster: cluster object that needs to be split
+
+        Return: list of Cluster objects
+
+        During the creation of the cluster, simply assign it the ID 0.
+        It will be taken care of in the calling function.
+
+        The new cluster is always on the right or bottom.
+        When deciding the new dimensions, the base cluster is rounded down
+        whilst the new one is rounded up.
+        """
+        clusterList = []
+        if power > 0:
+            if power % 2 == 1:
+                # Vertical split
+
+                # Create one new cluster and modify the base one.
+                # Base becomes left, new right
+
+                widthLeft = floor(baseCluster.width/2)
+                heightLeft = baseCluster.height
+                areaLeft = widthLeft * heightLeft
+                clusterLeft = Cluster(widthLeft, heightLeft, areaLeft, baseCluster.origin, 0)
+
+                splitClusters = self.splitDesign(power - 1, clusterLeft)
+                for cluster in splitClusters:
+                    clusterList.append(cluster)
+
+                widthRight = baseCluster.width - widthLeft
+                heightRight = baseCluster.height
+                areaRight = widthRight * heightRight
+                originRight = [baseCluster.origin[0] + widthLeft, baseCluster.origin[1]]
+                clusterRight = Cluster(widthRight, heightRight, areaRight, originRight, 0)
+
+                splitClusters = self.splitDesign(power - 1, clusterRight)
+                for cluster in splitClusters:
+                    clusterList.append(cluster)
+
+            elif power % 2 == 0:
+                # Horizontal split
+
+                # Base becomes top, new bottom
+
+                widthTop = baseCluster.width
+                heightTop = floor(baseCluster.height/2)
+                areaTop = widthTop * heightTop
+                clusterTop = Cluster(widthTop, heightTop, areaTop, baseCluster.origin, 0)
+
+                splitClusters = self.splitDesign(power - 1, clusterTop)
+                for cluster in splitClusters:
+                    clusterList.append(cluster)
+
+                widthBot = baseCluster.width
+                heightBot = baseCluster.height - heightTop
+                areaBot = widthBot * heightBot
+                originBot = [baseCluster.origin[0], baseCluster.origin[1] + heightTop]
+                clusterBot = Cluster(widthBot, heightBot, areaBot, originBot, 0)
+
+                splitClusters = self.splitDesign(power - 1, clusterBot)
+                for cluster in splitClusters:
+                    clusterList.append(cluster)
+
+        else:
+            clusterList.append(baseCluster)
+
+        return clusterList
+
+
+
+
+
+    def hierarchicalGeometricClustering(self, clustersTarget):
+        """
+        Hierarchical clustering: split the design in two, then each part in two again, etc.
+        """
+        global clustersTotal
+
+        # First, find the closest power of two from clustersTarget.
+        if clustersTarget - pow(2,floor(log(clustersTarget, 2))) < pow(2,ceil(log(clustersTarget, 2))) - clustersTarget:
+            power = floor(log(clustersTarget, 2))
+        else:
+            power = ceil(log(clustersTarget, 2))
+        clustersTarget = pow(2,power)
+
+        logger.info("Creating {} clusters in a hierarchical geometric way.".format(clustersTarget))
+
+        # Create first cluster spanning over the whole design
+        baseCluster = Cluster(self.width, self.height, self.area, [0,0], 0)
+        clusterList = self.splitDesign(power, baseCluster)
+
+        # Then for each cluster in the list, assign it a new ID and put it
+        # inside the dictionary self.clusters
+
+        for i, cluster in enumerate(clusterList):
+            cluster.id = i
+            self.clusters[i] = cluster
+
+
+        self.populateGeometricClusters()
+
+        clustersOutStr = ""
+        for ck in self.clusters:
+            clustersOutStr += str(self.clusters[ck].id) + "\n"
+
+        logger.debug("Dumping Clusters.out")
+        with open("Clusters.out", 'w') as file:
+            file.write(clustersOutStr)
+
+        clustersTotal = len(self.clusters)
+
+
+        # for ck in self.clusters:
+        #     cluster = self.clusters[ck]
+        #     print cluster.origin
+        #     print cluster.width
+        #     print cluster.height
+
+
+
+
+
+
 
 
 
@@ -1538,6 +1671,9 @@ if __name__ == "__main__":
                 design.clusterConnectivity()
             elif clusteringMethod == "progressive-wl":
                 design.progressiveWireLength(clustersTarget)
+            elif clusteringMethod == "hierarchical-geometric":
+                design.hierarchicalGeometricClustering(clustersTarget)
+                design.clusterConnectivity()
         design.clusterArea()
 
 
