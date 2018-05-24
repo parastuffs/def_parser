@@ -22,6 +22,7 @@ import copy
 from sets import Set
 import locale
 import os
+import shutil
 import datetime
 import errno
 import random
@@ -703,9 +704,32 @@ class Design:
             power = floor(log(clustersTarget, 2))
         else:
             power = ceil(log(clustersTarget, 2))
-        clustersTarget = pow(2,power)
+        clustersAmount = int(pow(2,power))
 
-        logger.info("Creating {} clusters in a hierarchical geometric way.".format(clustersTarget))
+        logger.info("Creating {} clusters in a hierarchical geometric way.".format(clustersAmount))
+
+
+
+        if clustersAmount != clustersTarget:
+            # Get current folder name
+            clusterDir = os.getcwd().split(os.sep)[-1]
+            # Get root path
+            clusterDirRoot = os.sep.join(os.getcwd().split(os.sep)[:-1])
+            newDir = os.path.join(clusterDirRoot, clusterDir.replace(str(clustersTarget), str(clustersAmount)))
+
+            logger.info("Target ({}) is different from actual amount ({}), moving everthing to {}.".format(clustersTarget, clustersAmount, newDir))
+
+            try:
+                os.makedirs(newDir)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
+
+            for file in os.listdir(os.getcwd()):
+                shutil.move(os.path.join(os.getcwd(), file), os.path.join(newDir, file))
+            shutil.rmtree(os.getcwd())
+            os.chdir(newDir)
+
 
         # Create first cluster spanning over the whole design
         baseCluster = Cluster(self.width, self.height, self.area, [0,0], 0)
