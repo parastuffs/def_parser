@@ -1528,36 +1528,12 @@ def extractMemoryMacros(hrows, frows):
 
 if __name__ == "__main__":
 
-    # Create the directory for the output.
-    rootDir = os.getcwd()
-    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "/"
-
-    try:
-        os.makedirs(output_dir)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-
-    # Load base config from conf file.
-    logging.config.fileConfig('log.conf')
-    # Load logger from config
-    logger = logging.getLogger('default')
-    # Create new file handler
-    fh = logging.FileHandler(os.path.join(output_dir, 'def_parser_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.log'))
-    # Set a format for the file handler
-    fh.setFormatter(logging.Formatter('%(asctime)s: %(message)s'))
-    # Add the handler to the logger
-    logger.addHandler(fh)
-    
-    logger.info("Working inside {}".format(output_dir))
-
 
     stdCellsTech = ""
     clusteringMethod = "random"
     clustersTargets = []
 
     args = docopt(__doc__)
-    logger.debug(args)
     if args["--design"] == "ldpc":
         deffile = "7nm_Jul2017/ldpc.def"
         MEMORY_MACROS = False
@@ -1608,6 +1584,33 @@ if __name__ == "__main__":
     else:
         RANDOM_SEED = random.random()
     random.seed(RANDOM_SEED)
+
+
+    # Create the directory for the output.
+    rootDir = os.getcwd()
+    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args["--design"] + "_" + str(clusteringMethod) + "/"
+
+    try:
+        os.makedirs(output_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+    # Load base config from conf file.
+    logging.config.fileConfig('log.conf')
+    # Load logger from config
+    logger = logging.getLogger('default')
+    # Create new file handler
+    fh = logging.FileHandler(os.path.join(output_dir, 'def_parser_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.log'))
+    # Set a format for the file handler
+    fh.setFormatter(logging.Formatter('%(asctime)s: %(message)s'))
+    # Add the handler to the logger
+    logger.addHandler(fh)
+
+    logger.debug(args)
+    
+    logger.info("Working inside {}".format(output_dir))
+
     logger.info("Seed: {}".format(RANDOM_SEED))
 
 
