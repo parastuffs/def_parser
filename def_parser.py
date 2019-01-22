@@ -140,6 +140,11 @@ class Design:
         logger.info("Nets: {}".format(len(self.nets)))
         logger.info("Total wirelength: {}".format(locale.format("%d", self.totalWireLength, grouping=True)))
         logger.info("Gates: {}".format(len(self.gates)))
+        n = 0
+        for key in self.gates:
+            n += len(self.gates[key].nets)
+        t = n/len(self.gates)
+        logger.info("Rent's 't' parameter: {}".format(t))
 
 
 
