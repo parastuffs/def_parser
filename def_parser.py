@@ -131,6 +131,10 @@ class Design:
         self.clusters = dict() # dictionary of cluster objects. Key: cluster id
         self.totalWireLength = 0
         self.totalInterClusterWL = 0
+        # Rent's terminals T (= t G^p)
+        # Key: number of gates in the cluster
+        # Value: External connectivity of the cluster
+        self.RentTerminals = dict()
 
     def Reset(self):
         '''
@@ -1192,6 +1196,16 @@ class Design:
             file.write(s)
 
 
+        # Compute Rent's terminals, a.k.a. clusters external connectivity
+        for clusterID in connectivityUniqueNet:
+            terminals = len(connectivityUniqueNet[clusterID])
+            gateNum = len(self.clusters[clusterID].gates)
+            # TODO some clusters appear to have 0 gate. Investigate this, it should not happen.
+            if gateNum > 0:
+                if gateNum not in self.RentTerminals:
+                    self.RentTerminals[gateNum] = list()
+                self.RentTerminals[gateNum].append(terminals)
+
 
 
 
@@ -1266,6 +1280,24 @@ class Design:
         logger.info("Dumping ClustersArea.out")
         with open("ClustersArea.out", 'w') as file:
             file.write(clusterAreaOut)
+
+
+    def RentStats(self, outFile):
+        '''
+        Export all Rent stats to outFile.
+        Not ordered at the moment
+        '''
+        outStr = "gate count, terminals\n"
+
+        for key in self.RentTerminals:
+            outStr += str(key) + ", "
+            for count in self.RentTerminals[key]:
+                outStr += str(count) + ", "
+            outStr += "\n"
+
+        logger.debug("Dumping {}".format(outFile))
+        with open(outFile, 'w') as file:
+            file.write(outStr)        
 
 
 
@@ -1350,10 +1382,6 @@ class Gate:
         self.stdCell = ""
         self.nets = dict() # key: net name, value: Net object
         self.cluster = None # Cluster object
-        # Rent's terminals T (= t G^p)
-        # Key: number of gates in the cluster
-        # Value: External connectivity of the cluster
-        self.RentTerminals = dict()
 
     def setX(self, x):
         self.x = x
@@ -1715,6 +1743,9 @@ if __name__ == "__main__":
                 design.hierarchicalGeometricClustering(clustersTarget)
                 design.clusterConnectivity()
         design.clusterArea()
+
+    os.chdir(output_dir)
+    design.RentStats("RentStats.csv")
 
 
 
