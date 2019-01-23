@@ -132,6 +132,13 @@ class Design:
         self.totalWireLength = 0
         self.totalInterClusterWL = 0
 
+    def Reset(self):
+        '''
+        Reset all cluster-specific attributes.
+        '''
+        self.clusters = dict()
+        self.totalInterClusterWL = 0
+
     def Digest(self):
         logger.info("Design digest:")
         logger.info("Width: {}".format(self.width))
@@ -1343,6 +1350,10 @@ class Gate:
         self.stdCell = ""
         self.nets = dict() # key: net name, value: Net object
         self.cluster = None # Cluster object
+        # Rent's terminals T (= t G^p)
+        # Key: number of gates in the cluster
+        # Value: External connectivity of the cluster
+        self.RentTerminals = dict()
 
     def setX(self, x):
         self.x = x
@@ -1653,6 +1664,18 @@ if __name__ == "__main__":
     # Change the working directory to the one created above.
     os.chdir(output_dir)
 
+
+    design = Design()
+    design.ReadArea()
+    design.ExtractCells()
+    # design.Digest()
+    design.extractPins()
+    # design.Digest()
+
+    design.extractNets()
+    design.sortNets()
+    design.Digest()
+
     # for clustersTarget in [500]:
     # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
     # for clustersTarget in [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000]:
@@ -1672,22 +1695,7 @@ if __name__ == "__main__":
         os.chdir(clustering_dir)
 
 
-        # TODO Why on Earth would I re-read the design as a whole for each
-        # clustering method ? It's always the same, it never changes.
-        # The only thing that changes is the clustering inside the Design
-        # object. It's not critical at the moment, as the clustering is
-        # by far the longest part of the execution, but still.
-
-        design = Design()
-        design.ReadArea()
-        design.ExtractCells()
-        # design.Digest()
-        design.extractPins()
-        # design.Digest()
-
-        design.extractNets()
-        design.sortNets()
-        design.Digest()
+        design.Reset()
 
         logger.debug(design.width * design.height)
 
