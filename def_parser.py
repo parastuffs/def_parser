@@ -58,6 +58,8 @@ output_dir = ""
 
 logger = logging.getLogger('default')
 
+SIG_SKIP = False
+
 
 
 
@@ -714,6 +716,8 @@ class Design:
         Hierarchical clustering: split the design in two, then each part in two again, etc.
         """
         global clustersTotal
+        global SIG_SKIP
+        SIG_SKIP = False
 
         # First, find the closest power of two from clustersTarget.
         if clustersTarget - pow(2,floor(log(clustersTarget, 2))) < pow(2,ceil(log(clustersTarget, 2))) - clustersTarget:
@@ -733,12 +737,16 @@ class Design:
             clusterDirRoot = os.sep.join(os.getcwd().split(os.sep)[:-1])
             newDir = os.path.join(clusterDirRoot, clusterDir.replace(str(clustersTarget), str(clustersAmount)))
 
-            logger.info("Target ({}) is different from actual amount ({}), moving everthing to {}.".format(clustersTarget, clustersAmount, newDir))
+            logger.info("Target ({}) is different from actual amount ({}), moving everything to {}.".format(clustersTarget, clustersAmount, newDir))
 
             try:
                 os.makedirs(newDir)
             except OSError as e:
-                if e.errno != errno.EEXIST:
+                if e.errno == errno.EEXIST:
+                    SIG_SKIP = True
+                    logger.debug("Amount {} already clustered, skipping...".format(clustersAmount))
+                    return
+                elif e.errno != errno.EEXIST:
                     raise
 
             for file in os.listdir(os.getcwd()):
@@ -1742,7 +1750,8 @@ if __name__ == "__main__":
                 design.progressiveWireLength(clustersTarget)
             elif clusteringMethod == "hierarchical-geometric":
                 design.hierarchicalGeometricClustering(clustersTarget)
-                design.clusterConnectivity()
+                if not SIG_SKIP:
+                    design.clusterConnectivity()
         design.clusterArea()
 
     os.chdir(output_dir)
