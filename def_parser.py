@@ -1201,6 +1201,7 @@ class Design:
             terminals = len(connectivityUniqueNet[clusterID])
             gateNum = len(self.clusters[clusterID].gates)
             # TODO some clusters appear to have 0 gate. Investigate this, it should not happen.
+            # This may actually be because of the geometrical clustering getting too fine.
             if gateNum > 0:
                 if gateNum not in self.RentTerminals:
                     self.RentTerminals[gateNum] = list()
@@ -1290,9 +1291,9 @@ class Design:
         outStr = "gate count, terminals\n"
 
         for key in self.RentTerminals:
-            outStr += str(key) + ", "
+            outStr += str(key)
             for count in self.RentTerminals[key]:
-                outStr += str(count) + ", "
+                outStr += ", " + str(count)
             outStr += "\n"
 
         logger.debug("Dumping {}".format(outFile))
