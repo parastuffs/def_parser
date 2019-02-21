@@ -1299,10 +1299,11 @@ class Design:
         outStr = "gate count, terminals\n"
 
         for key in self.RentTerminals:
-            outStr += str(key)
-            for count in self.RentTerminals[key]:
-                outStr += ", " + str(count)
-            outStr += "\n"
+            if key != len(self.gates):
+                outStr += str(key)
+                for count in self.RentTerminals[key]:
+                    outStr += ", " + str(count)
+                outStr += "\n"
 
         logger.debug("Dumping {}".format(outFile))
         with open(outFile, 'w') as file:
