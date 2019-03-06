@@ -28,6 +28,7 @@ import errno
 import random
 from docopt import docopt
 import logging, logging.config
+import numpy as np
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
@@ -154,10 +155,14 @@ class Design:
         logger.info("Total wirelength: {}".format(locale.format("%d", self.totalWireLength, grouping=True)))
         logger.info("Gates: {}".format(len(self.gates)))
         n = 0
+        widths = []
         for key in self.gates:
             n += len(self.gates[key].nets)
+            widths.append(self.gates[key].width)
         t = n/len(self.gates)
         logger.info("Rent's 't' parameter: {}".format(t))
+        logger.info("Average gate width: {}".format(np.mean(widths)))
+
 
 
 
@@ -1749,6 +1754,7 @@ if __name__ == "__main__":
                 design.clusterConnectivity()
             elif clusteringMethod == "progressive-wl":
                 design.progressiveWireLength(clustersTarget)
+                design.clusterConnectivity()
             elif clusteringMethod == "hierarchical-geometric":
                 design.hierarchicalGeometricClustering(clustersTarget)
                 if not SIG_SKIP:
