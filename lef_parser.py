@@ -1,7 +1,11 @@
+import numpy as np
+
 class Macro:
     def __init__(self, name):
         self.name = name
         self.pins = dict() # dictionary of Pin objects. Key: name of the pin.
+        self.width = 0
+        self.height = 0
 
     def numberPins(self):
         return len(self.pins)
@@ -11,6 +15,12 @@ class Macro:
         pin: Pin object
         '''
         self.pins[pin.name] = pin
+
+    def setWidth(self, w):
+        self.width = w
+
+    def setHeight(self, h):
+        self.height = h
 
 
 class Pin:
@@ -38,6 +48,13 @@ def parse_lef(file):
                 macro = Macro(line.split()[1]) # Create a Macro object. The name of the macro is the second word in the line 'MACRO ...'
                 macros[macro.name] = macro
 
+            if 'SIZE' in line:
+                # Sample line: SIZE 0.42 BY 0.24 ;
+                # width BY height
+                size = line.split()
+                macro.setWidth(float(size[1]))
+                macro.setHeight(float(size[3]))
+
 
             line = f.readline()
 
@@ -52,7 +69,13 @@ if __name__ == "__main__":
     output = ""
 
     for key in macros:
-        output += macros[key].name + ", " + str(len(macros[key].pins)) + "\n"
+        output += "{}, {}, {} by {}\n".format(macros[key].name, str(len(macros[key].pins)), macros[key].width, macros[key].height)
+
+    # Compute mean width
+    widths = []
+    for key, macro in macros.items():
+        widths.append(macro.width)
+    output += "Mean width: {}\n".format(np.mean(widths))
 
     print output
 
