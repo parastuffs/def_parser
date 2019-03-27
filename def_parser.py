@@ -3,6 +3,7 @@ Usage:
     def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
                     [CLUSTER_AMOUNT ...]
     def_parser.py (--help|-h)
+    def_parser.py [--design=DESIGN] (--digest)
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
@@ -11,6 +12,7 @@ Options:
                             Naive_Geometric or hierarchical-geometric. [default: random]
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
+    --digest                Print design's info and exit.
     -h --help               Print this help
 """
 
@@ -29,6 +31,8 @@ import random
 from docopt import docopt
 import logging, logging.config
 import numpy as np
+import sys
+import matplotlib.pyplot as plt
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
@@ -162,6 +166,61 @@ class Design:
         t = n/len(self.gates)
         logger.info("Rent's 't' parameter: {}".format(t))
         logger.info("Average gate width: {}".format(np.mean(widths)))
+
+        # Gates dispersion
+        self.GatesDispersion()
+        dispersions = list()
+        nMax = 5 # Number of max values we want to check
+        maxdisp = [0] * nMax
+        maxdispnet = [None] * nMax
+        for k, net in self.nets.items():
+            if len(net.gates) > 2:
+                dispersions.append(net.dispersion)
+                if net.dispersion > min(maxdisp):
+                    maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
+                    maxdispnet[maxdisp.index(min(maxdisp))] = net
+        logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
+        for i in range(len(maxdisp)):
+            logger.info("Max dispersion net gates info, {}:".format(i))
+            dispx = list()
+            dispy = list()
+            for k, gate in maxdispnet[i].gates.items():
+                logger.info("x: {}, y: {}".format(gate.x, gate.y))
+                dispx.append(gate.x)
+                dispy.append(gate.y)
+            # Find the max and tell me about its topology
+            plt.plot(dispx, dispy, 'o')
+            plt.axis([0, self.width, 0, self.height])
+            plt.figure()
+        plt.yscale("log")
+        plt.boxplot(dispersions)
+        plt.show()
+
+
+    def GatesDispersion(self):
+        '''
+        Compute the gates dispersion in each net.
+        '''
+        for kn in self.nets:
+            i = 0
+            dists = list()
+            gatekeys = self.nets[kn].gates.keys()
+            # print gatekeys
+            if len(gatekeys) > 1:
+                while i < len(gatekeys):
+                    j = i+1
+                    while j < len(gatekeys):
+                        # Compute the distance between all the gates.
+                        dists.append( abs( sqrt( (self.nets[kn].gates[gatekeys[i]].x - self.nets[kn].gates[gatekeys[j]].x)**2 + (self.nets[kn].gates[gatekeys[i]].y - self.nets[kn].gates[gatekeys[j]].y)**2 ) ) )
+                        j += 1
+                    i += 1
+                # Compute dispersion
+                maxdist = max(dists)
+                normaldists = [i/maxdist for i in dists]
+                # print normaldists
+                pairs = len(gatekeys) * (len(gatekeys)-1) / 2
+                dispersion = sum([1/i for i in normaldists])/pairs
+                self.nets[kn].setdispersion(dispersion)
 
 
 
@@ -1358,6 +1417,9 @@ class Net:
         self.wl = 0
         self.gates = dict()
         self.pins = dict()
+        # Gates dispersion inside of the net.
+        # A value of '0' means there is eitheir no gate or only one gate in the net.
+        self.dispersion = 0
 
     def addGate(self, gate):
         """
@@ -1376,6 +1438,9 @@ class Net:
         Total wire length, int.
         """
         self.wl = length
+
+    def setdispersion(self, dispersion):
+        self.dispersion = dispersion
 
 
 
@@ -1615,6 +1680,7 @@ if __name__ == "__main__":
     stdCellsTech = ""
     clusteringMethod = "random"
     clustersTargets = []
+    DIGESTONLY = False
 
     args = docopt(__doc__)
     if args["--design"] == "ldpc":
@@ -1668,6 +1734,13 @@ if __name__ == "__main__":
         RANDOM_SEED = random.random()
     random.seed(RANDOM_SEED)
 
+    if args["--digest"]:
+        DIGESTONLY = True
+        clusteringMethod = "digest"
+
+    if clustersTargets == 0:
+        clusteringMethod = "OneToOne"
+
 
     # Create the directory for the output.
     rootDir = os.getcwd()
@@ -1718,6 +1791,8 @@ if __name__ == "__main__":
     design.extractNets()
     design.sortNets()
     design.Digest()
+    if DIGESTONLY:
+        sys.exit()
 
     # for clustersTarget in [500]:
     # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
