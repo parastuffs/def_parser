@@ -194,7 +194,7 @@ class Design:
             plt.figure()
         plt.yscale("log")
         plt.boxplot(dispersions)
-        plt.show()
+        # plt.show()
 
 
     def GatesDispersion(self):
@@ -861,7 +861,13 @@ class Design:
 
 
 
-
+########      ###     ##      ##  ######     
+##     ##    ## ##    ###     ##  ##    ##   
+##     ##   ##   ##   ## ##   ##  ##     ##  
+########   ##     ##  ##  ##  ##  ##     ##  
+##   ##    #########  ##   ## ##  ##     ##  
+##    ##   ##     ##  ##     ###  ##    ##   
+##     ##  ##     ##  ##      ##  ######   
     def randomClusterize(self, clustersTarget):
         global clustersTotal
 
@@ -921,7 +927,13 @@ class Design:
 
 
 
-
+  #####    ##      ##  #########  
+##     ##  ###     ##  ##         
+##     ##  ## ##   ##  ##         
+##     ##  ##  ##  ##  ######     
+##     ##  ##   ## ##  ##         
+##     ##  ##     ###  ##         
+  #####    ##      ##  #########  
     def clusterizeOneToOne(self):
         """
         Each cluster is one gate.
@@ -967,6 +979,13 @@ class Design:
 
 
 
+########   ########     #####     #######   
+##     ##  ##     ##  ##     ##  ##         
+##     ##  ##     ##  ##     ##  ##         
+#######    ########   ##     ##  ##   ####  
+##         ##   ##    ##     ##  ##     ##  
+##         ##    ##   ##     ##  ##     ##  
+##         ##     ##    #####    ########   
 
 
     def progressiveWireLength(self, objective):
@@ -985,33 +1004,59 @@ class Design:
         # Ratio objective/clustersTotal. Must be in increasing order.
         checkpoints = [0.1, 0.12, 0.15, 0.18, 0.2, 0.22, 0.25, 0.28, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9]
 
-        # First, create sorted list of net length and name.
-        netLengths = []
-        netNames = []
-        for k in self.nets:
-            net = self.nets[k]
-            netLengths.append(net.wl)
-            netNames.append(net.name)
-        heapSort(netLengths, netNames)
+
+        if len(self.clusters) == 0:
+            # First, create sorted list of net length and name.
+            netLengths = []
+            netNames = []
+            for k in self.nets:
+                net = self.nets[k]
+                netLengths.append(net.wl)
+                netNames.append(net.name)
+            heapSort(netLengths, netNames)
 
 
-        # Create the basic clusters containing only one gate.
-        for i, key in enumerate(self.gates.keys()):
-            width = self.gates[key].width
-            height = self.gates[key].height
-            area = self.gates[key].getArea()
-            origin = [self.gates[key].x, self.gates[key].y]
-            identifier = i
+            # Create the basic clusters containing only one gate.
+            for i, key in enumerate(self.gates.keys()):
+                width = self.gates[key].width
+                height = self.gates[key].height
+                area = self.gates[key].getArea()
+                origin = [self.gates[key].x, self.gates[key].y]
+                identifier = i
 
-            cluster = Cluster(width, height, area, origin, identifier)
+                cluster = Cluster(width, height, area, origin, identifier)
 
-            cluster.addGate(self.gates[key])
+                cluster.addGate(self.gates[key])
 
-            cluster.setGateArea(area) # Same as the cluster area in this case.
+                cluster.setGateArea(area) # Same as the cluster area in this case.
 
-            self.clusters[cluster.id] = cluster
+                self.clusters[cluster.id] = cluster
 
-            self.gates[key].addCluster(cluster)
+                self.gates[key].addCluster(cluster)
+        else:
+            logger.debug("Reusing the previous step ({} clusters)".format(len(self.clusters)))
+            # We ca re-use a previous run.
+            # To do so, find all the nets remaining between the clusters.
+            # For each cluster, get the gates.
+            # For each gate, get the nets.
+            # For each net, get the gates and check if they all are in the same cluster.
+            netLengths = []
+            netNames = []
+            for i, cluster in self.clusters.items():
+                mainClusterID = cluster.id
+                for j, gate in cluster.gates.items():
+                    for k, net in gate.nets.items():
+                        for l, subgate in net.gates.items():
+                            if subgate.cluster.id != mainClusterID:
+                                try:
+                                    netNames.index(net.name)
+                                except ValueError as e:
+                                    # The net is not yet in the list
+                                    netLengths.append(net.wl)
+                                    netNames.append(net.name)
+                                break #Stop looking into this net, go on with the next one.
+
+
 
         clustersTotal = len(self.clusters)
 
@@ -1799,6 +1844,7 @@ if __name__ == "__main__":
     # for clustersTarget in [500]:
     # for clustersTarget in [4, 9, 25, 49, 100, 200, 300, 500, 1000, 2000, 3000]:
     # for clustersTarget in [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000]:
+    # TODO sort clustersTargets (reversed for progressive-wl)
     for clustersTarget in clustersTargets:
         logger.info("Clustering method: {}".format(clusteringMethod))
         clustering_dir = os.path.join(output_dir, deffile.split('/')[-1].split('.')[0] + "_" + clusteringMethod + "_" + str(clustersTarget))
@@ -1814,8 +1860,8 @@ if __name__ == "__main__":
         # Change the working directory to clustering dir.
         os.chdir(clustering_dir)
 
-
-        design.Reset()
+        if clusteringMethod != "progressive-wl":
+            design.Reset()
 
         logger.debug(design.width * design.height)
 
@@ -1831,7 +1877,7 @@ if __name__ == "__main__":
                 design.clusterConnectivity()
             elif clusteringMethod == "progressive-wl":
                 design.progressiveWireLength(clustersTarget)
-                design.clusterConnectivity()
+                # design.clusterConnectivity()
             elif clusteringMethod == "hierarchical-geometric":
                 design.hierarchicalGeometricClustering(clustersTarget)
                 if not SIG_SKIP:
