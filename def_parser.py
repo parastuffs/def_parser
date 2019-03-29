@@ -1026,6 +1026,7 @@ class Design:
             for k in net.gates:
                 gate = net.gates[k]
                 netClusters.add(gate.cluster.id)
+            # TODO move this into the for loop. If the condition is true, break out of the loop.
             if len(netClusters) > 1:
                 singleCluster = False
 
@@ -1043,7 +1044,7 @@ class Design:
                 if i == 0:
                     # Get the cluster.
                     clusterBase = gate.cluster
-                # If the gate if already in the base cluster, skip it.
+                # If the gate is already in the base cluster, skip it.
                 elif clusterBase.id == gate.cluster.id:
                     continue
                 else:
@@ -1063,12 +1064,12 @@ class Design:
                     if clusterToMerge.id in self.clusters.keys():
                         del self.clusters[clusterToMerge.id]
             clustersTotal = len(self.clusters)
-            if round(objective/clustersTotal, 2) in checkpoints:
-                balance = self.checkBalancable(self.clusters)
-                logger.debug("Checkpoint: {} Current count: {}, objective: {}, balance: {}".format(round(objective/clustersTotal, 2), clustersTotal, objective, balance))
-                del checkpoints[0]
-                if balance >= criticalRatio:
-                    criticalRatioReached = True
+            # if round(objective/clustersTotal, 2) in checkpoints:
+            #     balance = self.checkBalancable(self.clusters)
+            #     logger.debug("Checkpoint: {} Current count: {}, objective: {}, balance: {}".format(round(objective/clustersTotal, 2), clustersTotal, objective, balance))
+            #     del checkpoints[0]
+            #     if balance >= criticalRatio:
+            #         criticalRatioReached = True
 
             # Once added, remove the net from the list.
             # That way, the first net in the list is always the shortest.
@@ -1079,6 +1080,7 @@ class Design:
         clusterInstancesStr = ""
 
         # Change the cluster IDs so that there is no gap.
+        logger.debug("Update clusters ID to remove gaps.")
         clusterKeys = self.clusters.keys()
         for i, k in enumerate(clusterKeys):
             cluster = self.clusters[k]
