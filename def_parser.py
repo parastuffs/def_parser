@@ -33,7 +33,7 @@ import logging, logging.config
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
 
@@ -1195,8 +1195,8 @@ class Design:
         connectivityUniqueNet = dict() # Connectivity, but counting only once every net between clusters
 
         # In this matrix, a 0 means no connection.
-        conMatrix = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
-        conMatrixUniqueNet = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
+        # conMatrix = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
+        # conMatrixUniqueNet = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
         
         clusterNetSet = dict() # Dictionary of sets.
 
@@ -1231,11 +1231,11 @@ class Design:
                             if net.gates[subkey].cluster.id != cluster.id:
                                 if net.gates[subkey].cluster.gates.get(subgateName) != None:
                                         connectivity[cluster.id].append(net.gates[subkey].cluster.id)
-                                        conMatrix[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                        # conMatrix[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
                                         if netKey not in clusterNetSet[cluster.id]:
                                             clusterNetSet[cluster.id].add(netKey)
                                             connectivityUniqueNet[cluster.id].append(net.gates[subkey].cluster.id)
-                                            conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                            # conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
                                             if spaningNetsUnique.get(netKey) == None:
                                                 # If the net is not registered as spaning over several clusters, add it.
                                                 spaningNetsUnique[netKey] = net
@@ -1256,52 +1256,52 @@ class Design:
 
 
 
-        if not RAW_INTERCONNECTIONS:
-            logger.info("Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix_{}.csv".format(clustersTotal))
-            """
-            I want a matrix looking like
+        # if not RAW_INTERCONNECTIONS:
+            # logger.info("Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix_{}.csv".format(clustersTotal))
+            # """
+            # I want a matrix looking like
 
-              1 2 3 4
-            1 0 8 9 0
-            2 4 0 4 2
-            3 5 1 0 3
-            4 1 4 2 0
+            #   1 2 3 4
+            # 1 0 8 9 0
+            # 2 4 0 4 2
+            # 3 5 1 0 3
+            # 4 1 4 2 0
 
-            with the first row and first column being the cluster index, and the inside of the matrix the amount of connections
-            going from the cluster on the column to the cluster on the row (e.g. 8 connections go from 1 to 2 and 4 go from 4 to 1).
-            """
-            s = ""
+            # with the first row and first column being the cluster index, and the inside of the matrix the amount of connections
+            # going from the cluster on the column to the cluster on the row (e.g. 8 connections go from 1 to 2 and 4 go from 4 to 1).
+            # """
+            # s = ""
 
-            # First row
-            for i in range(clustersTotal):
-                s += "," + str(i)
-            s += "\n"
+            # # First row
+            # for i in range(clustersTotal):
+            #     s += "," + str(i)
+            # s += "\n"
 
-            for i in range(clustersTotal):
-                s += str(i) # First column
-                for j in range(clustersTotal):
-                    s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
-                s += "\n"
-            # print s
-            with open("inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv", 'w') as file:
-                file.write(s)
+            # for i in range(clustersTotal):
+            #     s += str(i) # First column
+            #     for j in range(clustersTotal):
+            #         s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+            #     s += "\n"
+            # # print s
+            # with open("inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv", 'w') as file:
+            #     file.write(s)
 
 
-            s = ""
+            # s = ""
 
-            # First row
-            for i in range(clustersTotal):
-                s += "," + str(i)
-            s += "\n"
+            # # First row
+            # for i in range(clustersTotal):
+            #     s += "," + str(i)
+            # s += "\n"
 
-            for i in range(clustersTotal):
-                s += str(i) # First column
-                for j in range(clustersTotal):
-                    s+= "," + str(conMatrixUniqueNet[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
-                s += "\n"
-            # print s
-            with open("inter_cluster_connectivity_matrix_unique_net_" + str(clustersTotal) + ".csv", 'w') as file:
-                file.write(s)
+            # for i in range(clustersTotal):
+            #     s += str(i) # First column
+            #     for j in range(clustersTotal):
+            #         s+= "," + str(conMatrixUniqueNet[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+            #     s += "\n"
+            # # print s
+            # with open("inter_cluster_connectivity_matrix_unique_net_" + str(clustersTotal) + ".csv", 'w') as file:
+            #     file.write(s)
 
 
 
@@ -1877,7 +1877,7 @@ if __name__ == "__main__":
                 design.clusterConnectivity()
             elif clusteringMethod == "progressive-wl":
                 design.progressiveWireLength(clustersTarget)
-                # design.clusterConnectivity()
+                design.clusterConnectivity()
             elif clusteringMethod == "hierarchical-geometric":
                 design.hierarchicalGeometricClustering(clustersTarget)
                 if not SIG_SKIP:
