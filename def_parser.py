@@ -142,6 +142,8 @@ class Design:
         # Key: number of gates in the cluster
         # Value: External connectivity of the cluster
         self.RentTerminals = dict()
+        self.RentParam = 0
+        self.agw = 0 # Average gate width
 
     def Reset(self):
         '''
@@ -164,8 +166,10 @@ class Design:
             n += len(self.gates[key].nets)
             widths.append(self.gates[key].width)
         t = n/len(self.gates)
+        self.RentParam = t
         logger.info("Rent's 't' parameter: {}".format(t))
-        logger.info("Average gate width: {}".format(np.mean(widths)))
+        self.agw = np.mean(widths)
+        logger.info("Average gate width: {}".format(self.agw))
 
         # Gates dispersion
         self.GatesDispersion()
