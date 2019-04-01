@@ -994,7 +994,7 @@ class Design:
 
     def progressiveWireLength(self, objective):
         """
-        Create <objective> clusters.
+        Create clusters until the <objective> wirelength is converted into inracluster wires.
         """
         logger.info("Clusterizing...")
         global clustersTotal
@@ -1002,6 +1002,7 @@ class Design:
         # Stop point for the clustering, the area disblanced limit has been reached.
         criticalRatioReached = False
         criticalRatio = 0.6
+        objective = objective*self.agw
 
 
 
@@ -1059,12 +1060,14 @@ class Design:
                                     netLengths.append(net.wl)
                                     netNames.append(net.name)
                                 break #Stop looking into this net, go on with the next one.
+            heapSort(netLengths, netNames)
 
 
 
         clustersTotal = len(self.clusters)
+        minWL = netLengths[0]
 
-        while (clustersTotal > objective and len(netNames) > 0 and not criticalRatioReached) :
+        while (minWL < objective and len(netNames) > 0 and not criticalRatioReached) :
             # Select the shortest net.
             net = self.nets[netNames[0]]
 
@@ -1112,7 +1115,7 @@ class Design:
                     # If it's not in the dictionary, it simply means it was deleted in a previous step.
                     if clusterToMerge.id in self.clusters.keys():
                         del self.clusters[clusterToMerge.id]
-            clustersTotal = len(self.clusters)
+            minWL = netLengths[0]
             # if round(objective/clustersTotal, 2) in checkpoints:
             #     balance = self.checkBalancable(self.clusters)
             #     logger.debug("Checkpoint: {} Current count: {}, objective: {}, balance: {}".format(round(objective/clustersTotal, 2), clustersTotal, objective, balance))
@@ -1130,6 +1133,7 @@ class Design:
 
         # Change the cluster IDs so that there is no gap.
         logger.debug("Update clusters ID to remove gaps.")
+        clustersTotal = len(self.clusters)
         clusterKeys = self.clusters.keys()
         for i, k in enumerate(clusterKeys):
             cluster = self.clusters[k]
