@@ -65,6 +65,9 @@ logger = logging.getLogger('default')
 
 SIG_SKIP = False
 
+# Skipping probability, [0,1]. Probability to skip a net durring the progressive-wl method.
+SKIP_PROB = 0.1
+
 
 
 
@@ -185,7 +188,7 @@ class Design:
                     maxdispnet[maxdisp.index(min(maxdisp))] = net
         logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
         for i in range(len(maxdisp)):
-            logger.info("Max dispersion net gates info, {}:".format(i))
+            # logger.info("Max dispersion net gates info, {}:".format(i))
             dispx = list()
             dispy = list()
             for k, gate in maxdispnet[i].gates.items():
@@ -1065,68 +1068,76 @@ class Design:
 
 
         clustersTotal = len(self.clusters)
-        minWL = netLengths[0]
+        minWL = netLengths[0] # Do not use the min() function, I want to fetch the first one. This expects the array to be sorted at first, however.
 
         while (minWL < objective and len(netNames) > 0 and not criticalRatioReached) :
-            # Select the shortest net.
-            net = self.nets[netNames[0]]
+            if random.uniform(0, 1) > SKIP_PROB:
+                # Select the shortest net.
+                net = self.nets[netNames[0]]
 
-            # Check that <net> is not entirely contained inside a single cluster.
-            # This is not handled the most efficient way, but it sure is easy.
-            singleCluster = True
-            netClusters = Set()
-            for k in net.gates:
-                gate = net.gates[k]
-                netClusters.add(gate.cluster.id)
-            # TODO move this into the for loop. If the condition is true, break out of the loop.
-            if len(netClusters) > 1:
-                singleCluster = False
+                # Check that <net> is not entirely contained inside a single cluster.
+                # This is not handled the most efficient way, but it sure is easy.
+                singleCluster = True
+                netClusters = Set()
+                for k in net.gates:
+                    gate = net.gates[k]
+                    netClusters.add(gate.cluster.id)
+                # TODO move this into the for loop. If the condition is true, break out of the loop.
+                if len(netClusters) > 1:
+                    singleCluster = False
 
-            # Net already in a single cluster, remove it and consider the next one.
-            if singleCluster:
+                # Net already in a single cluster, remove it and consider the next one.
+                if singleCluster:
+                    del netNames[0]
+                    del netLengths[0]
+                    continue
+
+                clusterBase = None
+                # Merge all the clusters connected by the net.
+                for i, key in enumerate(net.gates):
+                    gate = net.gates[key]
+                    # First gate's cluster will serve as recipient for ther merger
+                    if i == 0:
+                        # Get the cluster.
+                        clusterBase = gate.cluster
+                    # If the gate is already in the base cluster, skip it.
+                    elif clusterBase.id == gate.cluster.id:
+                        continue
+                    else:
+                        clusterToMerge = gate.cluster
+                        # for each gate in the net, identify the corresponding cluster.
+                        for keyToMerge in clusterToMerge.gates:
+                            gateToMerge = clusterToMerge.gates[keyToMerge]
+                        # for each gate in the cluster, add it to the recipient cluster.
+                            clusterBase.addGate(gateToMerge)
+                        # Change the cluster object reference inside the gate object.
+                            gateToMerge.cluster = clusterBase
+                        # Change the cluster area.
+                        clusterBase.setGateArea(clusterBase.getGateArea() + clusterToMerge.getGateArea())
+                        clusterBase.area = clusterBase.getGateArea()
+                        # Remove the cluster from the Design list.
+                        # If it's not in the dictionary, it simply means it was deleted in a previous step.
+                        if clusterToMerge.id in self.clusters.keys():
+                            del self.clusters[clusterToMerge.id]
+                minWL = netLengths[0]
+                # if round(objective/clustersTotal, 2) in checkpoints:
+                #     balance = self.checkBalancable(self.clusters)
+                #     logger.debug("Checkpoint: {} Current count: {}, objective: {}, balance: {}".format(round(objective/clustersTotal, 2), clustersTotal, objective, balance))
+                #     del checkpoints[0]
+                #     if balance >= criticalRatio:
+                #         criticalRatioReached = True
+
+                # Once added, remove the net from the list.
+                # That way, the first net in the list is always the shortest.
                 del netNames[0]
                 del netLengths[0]
-                continue
-
-            clusterBase = None
-            # Merge all the clusters connected by the net.
-            for i, key in enumerate(net.gates):
-                gate = net.gates[key]
-                # First gate's cluster will serve as recipient for ther merger
-                if i == 0:
-                    # Get the cluster.
-                    clusterBase = gate.cluster
-                # If the gate is already in the base cluster, skip it.
-                elif clusterBase.id == gate.cluster.id:
-                    continue
-                else:
-                    clusterToMerge = gate.cluster
-                    # for each gate in the net, identify the corresponding cluster.
-                    for keyToMerge in clusterToMerge.gates:
-                        gateToMerge = clusterToMerge.gates[keyToMerge]
-                    # for each gate in the cluster, add it to the recipient cluster.
-                        clusterBase.addGate(gateToMerge)
-                    # Change the cluster object reference inside the gate object.
-                        gateToMerge.cluster = clusterBase
-                    # Change the cluster area.
-                    clusterBase.setGateArea(clusterBase.getGateArea() + clusterToMerge.getGateArea())
-                    clusterBase.area = clusterBase.getGateArea()
-                    # Remove the cluster from the Design list.
-                    # If it's not in the dictionary, it simply means it was deleted in a previous step.
-                    if clusterToMerge.id in self.clusters.keys():
-                        del self.clusters[clusterToMerge.id]
-            minWL = netLengths[0]
-            # if round(objective/clustersTotal, 2) in checkpoints:
-            #     balance = self.checkBalancable(self.clusters)
-            #     logger.debug("Checkpoint: {} Current count: {}, objective: {}, balance: {}".format(round(objective/clustersTotal, 2), clustersTotal, objective, balance))
-            #     del checkpoints[0]
-            #     if balance >= criticalRatio:
-            #         criticalRatioReached = True
-
-            # Once added, remove the net from the list.
-            # That way, the first net in the list is always the shortest.
-            del netNames[0]
-            del netLengths[0]
+            else:
+                # Skip this net.
+                # This means put it at the end of the array and remove it from the front.
+                netNames.append(netNames[0])
+                del netNames[0]
+                netLengths.append(netLengths[0])
+                del netLengths[0]
 
         clusterListStr = ""
         clusterInstancesStr = ""
