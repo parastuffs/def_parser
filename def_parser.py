@@ -189,7 +189,7 @@ class Design:
             dispx = list()
             dispy = list()
             for k, gate in maxdispnet[i].gates.items():
-                logger.info("x: {}, y: {}".format(gate.x, gate.y))
+                # logger.info("x: {}, y: {}".format(gate.x, gate.y))
                 dispx.append(gate.x)
                 dispy.append(gate.y)
             # Find the max and tell me about its topology
@@ -1383,7 +1383,7 @@ class Design:
 
 
 
-
+        self.totalInterClusterWL = 0
         for key in spaningNetsUnique:
             self.totalInterClusterWL += spaningNetsUnique[key].wl
         logger.info("Total inter-cluster wirelength: {}, which is {}% of the total wirelength.".format(locale.format("%d", self.totalInterClusterWL, grouping=True), self.totalInterClusterWL*100/self.totalWireLength))
@@ -1776,6 +1776,8 @@ if __name__ == "__main__":
 
     if args["--clust-meth"]:
         clusteringMethod = args["--clust-meth"]
+
+    # TODO add a list of legit methods. If the cli argument is not among them, throw an error and exit.
 
     if args["CLUSTER_AMOUNT"]:
         for n in args["CLUSTER_AMOUNT"]:
