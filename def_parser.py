@@ -7,7 +7,7 @@ Usage:
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
-                            ccx, ldpc-4x4-serial or ldpc-4x4.
+                            ccx, ldpc-4x4-serial, ldpc-4x4 or smallboom.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric or hierarchical-geometric. [default: random]
     --seed=<seed>           RNG seed
@@ -33,7 +33,7 @@ import logging, logging.config
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
 
@@ -174,34 +174,43 @@ class Design:
         self.agw = np.mean(widths)
         logger.info("Average gate width: {}".format(self.agw))
 
-        # Gates dispersion
-        self.GatesDispersion()
-        dispersions = list()
-        nMax = 5 # Number of max values we want to check
-        maxdisp = [0] * nMax
-        maxdispnet = [None] * nMax
-        for k, net in self.nets.items():
-            if len(net.gates) > 2:
-                dispersions.append(net.dispersion)
-                if net.dispersion > min(maxdisp):
-                    maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
-                    maxdispnet[maxdisp.index(min(maxdisp))] = net
-        logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
-        for i in range(len(maxdisp)):
-            # logger.info("Max dispersion net gates info, {}:".format(i))
-            dispx = list()
-            dispy = list()
-            for k, gate in maxdispnet[i].gates.items():
-                # logger.info("x: {}, y: {}".format(gate.x, gate.y))
-                dispx.append(gate.x)
-                dispy.append(gate.y)
-            # Find the max and tell me about its topology
-            plt.plot(dispx, dispy, 'o')
-            plt.axis([0, self.width, 0, self.height])
-            plt.figure()
-        plt.yscale("log")
-        plt.boxplot(dispersions)
-        # plt.show()
+        # # Gates dispersion
+        # logger.info("Compute average gate dispersion")
+        # self.GatesDispersion()
+        # dispersions = list()
+        # nMax = 5 # Number of max values we want to check
+        # maxdisp = [0] * nMax
+        # maxdispnet = [None] * nMax
+        # for k, net in self.nets.items():
+        #     if len(net.gates) > 2:
+        #         dispersions.append(net.dispersion)
+        #         if net.dispersion > min(maxdisp):
+        #             maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
+        #             maxdispnet[maxdisp.index(min(maxdisp))] = net
+        # logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
+        # for i in range(len(maxdisp)):
+        #     # logger.info("Max dispersion net gates info, {}:".format(i))
+        #     dispx = list()
+        #     dispy = list()
+        #     for k, gate in maxdispnet[i].gates.items():
+        #         # logger.info("x: {}, y: {}".format(gate.x, gate.y))
+        #         dispx.append(gate.x)
+        #         dispy.append(gate.y)
+        #     # Find the max and tell me about its topology
+        #     plt.plot(dispx, dispy, 'o')
+        #     plt.axis([0, self.width, 0, self.height])
+        #     plt.figure()
+        # plt.yscale("log")
+        # plt.boxplot(dispersions)
+        # # plt.show()
+
+        # Manhattan skew
+        # TODO
+
+        # Inter-gate distance
+        # logger.info("Compute Manhattan inter-gate distance between each pair of connected gates...")
+        # self.IntergateDistance()
+        
 
 
     def GatesDispersion(self):
@@ -228,6 +237,46 @@ class Design:
                 pairs = len(gatekeys) * (len(gatekeys)-1) / 2
                 dispersion = sum([1/i for i in normaldists])/pairs
                 self.nets[kn].setdispersion(dispersion)
+
+    def IntergateDistance(self):
+        manDists = list()
+
+        manDistStr = "Net name, gate A, gate B, Manhattan distance (um), Manhattan distance (agw)\n"
+        for kn in self.nets:
+            if len(self.nets[kn].gates) > 1:
+                kg = self.nets[kn].gates.keys()
+                for i in range(len(kg)):
+                    for j in range(i+1, len(kg)):
+                        # logger.debug("i:{}, j:{}".format(i, j))
+                        # Manhattan distance is the half-perimeter length of the bounding box containing the two gates.
+                        # In other words, the sum of the difference between their two coordinates.
+                        manDist = abs(self.nets[kn].gates[kg[i]].x - self.nets[kn].gates[kg[j]].x) + abs(self.nets[kn].gates[kg[i]].y - self.nets[kn].gates[kg[j]].y)
+                        manDists.append(manDist)
+                        manDistStr += "{}, {}, {}, {}, {}\n".format(str(kn), str(kg[i]), str(kg[j]), str(manDist), str(manDist * self.agw))
+        with open("Manhattan_distances_full_design.csv", 'w') as f:
+            f.write(manDistStr)
+
+        # manDists.sort()
+        # manDistsCumul = np.cumsum(manDists)
+        # abscissa = [i for i in range(1,len(manDistsCumul)+1)]
+
+        # plt.plot(abscissa, manDistsCumul)
+        # plt.show()
+
+        (plotValues, plotBins, _) = plt.hist([self.agw*i for i in manDists], bins=[i for i in range(1,200)])
+        # (plotValues, plotBins, _) = plt.hist([self.agw*i for i in manDists], bins=10)
+        plt.xscale("log")
+        # plt.hist(manDists, bins=10)
+        # print("{}, {}".format(plotValues, plotBins))
+        plt.figure()
+        # print([sum(plotValues[:i+1]) for i in range(len(plotValues))])
+        plt.plot(plotBins[1:], [sum(plotValues[:i+1]) for i in range(len(plotValues))], 'o-')
+        plt.xscale("log")
+            
+        plt.show()
+
+
+
 
 
 
@@ -281,8 +330,12 @@ class Design:
                             gate.setHeight(0.25)
                             unknownCellsCounts += 1
                         else:
-                            gate.setWidth(macros.get(gate.getStdCell())[0]) # Get the width from the macros dictionary.
-                            gate.setHeight(macros.get(gate.getStdCell())[1]) # Get the height from the macros dictionary.
+                            try:
+                                gate.setWidth(macros.get(gate.getStdCell())[0]) # Get the width from the macros dictionary.
+                                gate.setHeight(macros.get(gate.getStdCell())[1]) # Get the height from the macros dictionary.
+                            except:
+                                logger.error("Could not find the macro '{}' while parsing the line\n{}\nThis macro might be missing from the LEF file. \nExiting.".format(gate.getStdCell(), line))
+                                sys.exit()
                         """
                         A cell is always defined on a single line.
                         On this line, its coordinates are written as
@@ -350,8 +403,8 @@ class Design:
 
         with open(deffile, 'r') as f:
             line = f.readline()
-
             while line:
+                nextLine = ""
 
                 if 'PINS ' in line:
                     inPins = True
@@ -365,16 +418,24 @@ class Design:
                     nextLine = f.readline()
 
                     # Skip everything up to the 'PLACED' keyword
-                    while not ' PLACED ' in nextLine:
+                    while not ' PLACED ' in nextLine and not '- ' in nextLine and not 'END PINS' in nextLine:
                         nextLine = f.readline()
 
-                    # Now we are at the 'PLACED' line
-                    pin.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2])/UNITS_DISTANCE_MICRONS)
-                    pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
+                    if ' PLACED ' in nextLine:
+                        # Now we are at the 'PLACED' line
+                        pin.setX(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 2])/UNITS_DISTANCE_MICRONS)
+                        pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
+                    else:
+                        # Could not find a 'placed' instruction for the pin.
+                        pin.setX(0)
+                        pin.setY(0)
 
                     self.addPin(pin)
 
-                line = f.readline()
+                if '- ' in nextLine or 'END PINS' in nextLine:
+                    line = nextLine
+                else:
+                    line = f.readline()
 
 
     #########  ##    ##   ##########  ##      ##  #########  ##########   #######   
@@ -427,6 +488,12 @@ class Design:
                                 netDetails = f.readline().strip()
                                 continue # ignores the end of the loop and skip to the next iteration.
 
+                            if "+ USE" in netDetails or "+ WEIGHT" in netDetails:
+                                # This is an empty net. Even though it does connect gates,
+                                # there is no routing information. Keep its length at 0.
+                                netDetails = f.readline().strip()
+                                continue
+
 
                             split = netDetails.split(')') # Split the line so that each element is only one pin or gate
                             for gateBlock in split:
@@ -442,10 +509,12 @@ class Design:
                                     gate = self.gates.get(gateBlockSplit[1])
                                     if gate == None:
                                         # This is not a normal situation. Debug.
-                                        logger.debug("gateblock: {}".format(gateBlock))
-                                        logger.debug("netdetails: {}".format(netDetails))
-                                        logger.debug("Gate we are trying to add: '{}'".format(gateBlockSplit[1]))
-                                        logger.debug("For the net: {}".format(net.name))
+                                        logger.error("A gate name has not been recognized in the net description.")
+                                        logger.error("gateblock: {}".format(gateBlock))
+                                        logger.error("netdetails: {}".format(netDetails))
+                                        logger.error("Gate we are trying to add: '{}'".format(gateBlockSplit[1]))
+                                        logger.error("For the net: {}".format(net.name))
+                                        sys.exit()
                                     net.addGate(gate)
                                     gate.addNet(net)
                                     # TODO if gate.name contains '[' or ']', enclose the name between '{}'
@@ -1632,7 +1701,7 @@ class Cluster:
 
 def extractStdCells(tech):
     """
-    @tech: 7nm|45nm
+    @tech: 7nm|45nm|gsclib045
 
     Area: the area is given in the first few lines of the definition.
     e.g. 
@@ -1647,6 +1716,9 @@ def extractStdCells(tech):
         lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/" # flipr, boomcore, ldpc
     elif tech == "45nm":
         lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/" # ccx, spc
+    elif tech == "gsclib045":
+        lefdir = "/home/para/dev/def_parser/SmallBOOM_CDN45/" # smallboom
+
     
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
@@ -1784,6 +1856,10 @@ if __name__ == "__main__":
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 1000
         stdCellsTech = "45nm"
+    elif args["--design"] == "smallboom":
+        deffile = "SmallBOOM_CDN45/SmallBOOM.def"
+        UNITS_DISTANCE_MICRONS = 2000
+        stdCellsTech = "gsclib045"
 
     if args["--clust-meth"]:
         clusteringMethod = args["--clust-meth"]
