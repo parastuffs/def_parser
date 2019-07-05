@@ -208,8 +208,8 @@ class Design:
         # TODO
 
         # Inter-gate distance
-        # logger.info("Compute Manhattan inter-gate distance between each pair of connected gates...")
-        # self.IntergateDistance()
+        logger.info("Compute Manhattan inter-gate distance between each pair of connected gates...")
+        self.IntergateDistance()
         
 
 
@@ -241,7 +241,7 @@ class Design:
     def IntergateDistance(self):
         manDists = list()
 
-        manDistStr = "Net name, gate A, gate B, Manhattan distance (um), Manhattan distance (agw)\n"
+        # manDistStr = "Net name, gate A, gate B, Manhattan distance (um), Manhattan distance (agw)\n"
         for kn in self.nets:
             if len(self.nets[kn].gates) > 1:
                 kg = self.nets[kn].gates.keys()
@@ -252,9 +252,9 @@ class Design:
                         # In other words, the sum of the difference between their two coordinates.
                         manDist = abs(self.nets[kn].gates[kg[i]].x - self.nets[kn].gates[kg[j]].x) + abs(self.nets[kn].gates[kg[i]].y - self.nets[kn].gates[kg[j]].y)
                         manDists.append(manDist)
-                        manDistStr += "{}, {}, {}, {}, {}\n".format(str(kn), str(kg[i]), str(kg[j]), str(manDist), str(manDist * self.agw))
-        with open("Manhattan_distances_full_design.csv", 'w') as f:
-            f.write(manDistStr)
+                        # manDistStr = "{}{}, {}, {}, {}, {}\n".format(manDistStr, str(kn), str(kg[i]), str(kg[j]), str(manDist), str(manDist * self.agw))
+        # with open("Manhattan_distances_full_design.csv", 'w') as f:
+        #     f.write(manDistStr)
 
         # manDists.sort()
         # manDistsCumul = np.cumsum(manDists)
@@ -263,15 +263,19 @@ class Design:
         # plt.plot(abscissa, manDistsCumul)
         # plt.show()
 
-        (plotValues, plotBins, _) = plt.hist([self.agw*i for i in manDists], bins=[i for i in range(1,200)])
+        (plotValues, plotBins, _) = plt.hist([self.agw*i for i in manDists], bins=[i for i in range(1,100)])
         # (plotValues, plotBins, _) = plt.hist([self.agw*i for i in manDists], bins=10)
         plt.xscale("log")
+        plt.title("Distribution of inter-gate Manhattan distance\n according to their proportion of average gate width (agw) {}".format(self.agw))
+        plt.savefig('intergate_Manhattan_agw_distribution.png')
         # plt.hist(manDists, bins=10)
         # print("{}, {}".format(plotValues, plotBins))
         plt.figure()
         # print([sum(plotValues[:i+1]) for i in range(len(plotValues))])
         plt.plot(plotBins[1:], [sum(plotValues[:i+1]) for i in range(len(plotValues))], 'o-')
         plt.xscale("log")
+        plt.title("Cumulative inter-gate Manhattan distance\n according to their proportion of average gate width (agw) {}".format(self.agw))
+        plt.savefig('intergate_Manhattan_agw_cumulative.png')
             
         plt.show()
 
