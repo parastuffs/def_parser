@@ -268,7 +268,7 @@ class Design:
         # (plotValues, plotBins, _) = plt.hist([self.agw*i for i in manDists], bins=10)
         plt.xscale("log")
         plt.title("Distribution of inter-gate Manhattan distance\n according to their proportion of average gate width (agw) {}".format(self.agw))
-        plt.savefig('intergate_Manhattan_agw_distribution.png')
+        plt.savefig('{}_intergate_Manhattan_agw_distribution.png'.format(self.name))
         # plt.hist(manDists, bins=10)
         # print("{}, {}".format(plotValues, plotBins))
         plt.figure()
@@ -276,7 +276,7 @@ class Design:
         plt.plot(plotBins[1:], [sum(plotValues[:i+1]) for i in range(len(plotValues))], 'o-')
         plt.xscale("log")
         plt.title("Cumulative inter-gate Manhattan distance\n according to their proportion of average gate width (agw) {}".format(self.agw))
-        plt.savefig('intergate_Manhattan_agw_cumulative.png')
+        plt.savefig('{}_intergate_Manhattan_agw_cumulative.png'.format(self.name))
             
         plt.show()
 
