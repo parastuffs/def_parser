@@ -147,6 +147,7 @@ class Design:
         self.RentTerminals = dict()
         self.RentParam = 0
         self.agw = 0 # Average gate width
+        self.name = ""
 
     def Reset(self):
         '''
@@ -156,7 +157,7 @@ class Design:
         self.totalInterClusterWL = 0
 
     def Digest(self):
-        logger.info("Design digest:")
+        logger.info("Design digest {}:".format(self.name))
         logger.info("Width: {}".format(self.width))
         logger.info("Height: {}".format(self.height))
         logger.info("Aspect ratio: {}".format(self.width/self.height))
@@ -1930,6 +1931,7 @@ if __name__ == "__main__":
 
 
     design = Design()
+    design.name = args["--design"]
     design.ReadArea()
     design.ExtractCells()
     # design.Digest()
