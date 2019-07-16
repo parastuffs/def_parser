@@ -9,7 +9,7 @@ Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
                             ccx, ldpc-4x4-serial, ldpc-4x4 or smallboom.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
-                            Naive_Geometric or hierarchical-geometric. [default: random]
+                            Naive_Geometric, hierarchical-geometric kmeans-geometric or kmeans-random. [default: random]
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     --digest                Print design's info and exit.
@@ -279,7 +279,7 @@ class Design:
         plt.title("Cumulative inter-gate Manhattan distance\n according to their proportion of average gate width (agw) {}".format(self.agw))
         plt.savefig('{}_intergate_Manhattan_agw_cumulative.png'.format(self.name))
             
-        plt.show()
+        # plt.show()
 
 
 
@@ -854,6 +854,13 @@ class Design:
 
 
 
+##     ##  ########   #########  ########            #######   #########    #####    ##       ##  
+##     ##     ##      ##         ##     ##          ##         ##         ##     ##  ###     ###  
+##     ##     ##      ##         ##     ##          ##         ##         ##     ##  ## ## ## ##  
+#########     ##      ######     ########     ####  ##   ####  ######     ##     ##  ##  ###  ##  
+##     ##     ##      ##         ##   ##            ##     ##  ##         ##     ##  ##       ##  
+##     ##     ##      ##         ##    ##           ##     ##  ##         ##     ##  ##       ##  
+##     ##  ########   #########  ##     ##          ########   #########    #####    ##       ## 
 
     def hierarchicalGeometricClustering(self, clustersTarget):
         """
@@ -1253,6 +1260,168 @@ class Design:
             return float(part1Area) / (part1Area + part2Area)
         else:
             return float(part2Area) / (part1Area + part2Area)
+
+
+
+
+
+##   ##    ##       ##  #########     ###     ##      ##   #######   
+##  ##     ###     ###  ##           ## ##    ###     ##  ##     ##  
+## ##      ## ## ## ##  ##          ##   ##   ## ##   ##  ##         
+####       ##  ###  ##  ######     ##     ##  ##  ##  ##   #######   
+##  ##     ##       ##  ##         #########  ##   ## ##         ##  
+##   ##    ##       ##  ##         ##     ##  ##     ###  ##     ##  
+##    ##   ##       ##  #########  ##     ##  ##      ##   #######   
+
+    def kmeans(self, clustersTarget, clusteringMethod):
+        """Kmeans clustering.
+        The idea is to place regular points in the design that will act as centers of gravity.
+        For each of those, we will clusterize the pairs of gates which closest gravity center is that one. This first step actually results in the naive geometric clustering.
+        Next, for each cluster, we compute a center of mass from all the gates position, which will become a new center of gravity for the next iteration.
+        We then iterate until convergence.
+
+        For the first step, we can have two possibilities:
+        1. The target amount of clusters we want to create is the square value of a natural number.
+        We thus simply need to place them regularly in the design as such (9 clusters):
+        -----------
+        | x  x  x |
+        | x  x  x |
+        | x  x  x |
+        -----------
+
+        2. It's not. In that case, there will be an extra gravity line (11 clusters):
+        -----------------
+        |    x     x    |
+        |  x    x    x  |
+        |  x    x    x  |
+        |  x    x    x  |
+        -----------------
+        The extra line can have up to (a+1)**2 - a**2 - 1 = 2*a elements.
+        We could thus have up to 2*a/a**2 = 2/a clusters that are 'out-of-shape'.
+
+
+
+        Parameters
+        ----------
+        clustersTarget : int
+            Amount of clusters we want to create.
+        """
+
+        logger.info("Creating {} clusters using kmeans.".format(clustersTarget))
+
+        # Number or time we update the center of gravity from the center of mass.
+        NRUNS = 30
+
+
+        if clusteringMethod == "kmeans-geometric":
+            # Place the centers of gravity geometricaly.
+            centers = list()
+            base = sqrt(clustersTarget)
+            if base == floor(base):
+                # target is a perfect square
+                base = int(base)
+                for i in range(base):
+                    for j in range(base):
+                        centers.append(( (0.5+i)*(self.width/base), (0.5+j)*(self.height/base) ))
+            else:
+                base = int(floor(base))
+                if self.width > self.height:
+                    # Design is wider than tall, extra column
+                    for i in range(base):
+                        for j in range(base):
+                            centers.append(( (0.5+i)*(self.width/(base+1)), (0.5+j)*(self.height/base) ))
+                    # Create extra column of clusters
+                    for j in range( clustersTarget - base**2 ):
+                        centers.append(( (0.5+base)*(self.width/(base+1)), (0.5+j)*(self.height/(clustersTarget - base**2)) ))
+                else:
+                    # Design is taller than wide or perfectly square, extra row
+                    for i in range(base):
+                        for j in range(base+1):
+                            centers.append(( (0.5+i)*(self.width/base), (0.5+j)*(self.height/(base+1)) ))
+                    # Create extra row of clusters
+                    for i in range( clustersTarget - base**2 ):
+                        centers.append(( (0.5+i)*(self.width/(clustersTarget - base**2)), (0.5+base)*(self.height/(base+1)) ))
+        elif clusteringMethod == "kmeans-random":
+            centers = list()
+            for i in range(clustersTarget):
+                centers.append(( random.uniform(0,self.width), random.uniform(0, self.height) ))
+
+        # print(centers)
+
+        for run in range(NRUNS):
+            # Reset clusters
+            self.clusters = dict()
+
+            for i in enumerate(centers):
+                cluster =  Cluster(0, 0, 0, 0, i[0])
+                self.clusters[cluster.id] = cluster
+
+            # Place gates in closest cluster
+            for gk in self.gates:
+                disClosest = float('inf')
+                clustClosest = 0
+                for center in enumerate(centers):
+                    disCenter = sqrt( (self.gates[gk].x - center[1][0])**2 + (self.gates[gk].y - center[1][1])**2 )
+                    if disCenter < disClosest:
+                        disClosest = disCenter
+                        # The id of the center is the id of the cluster
+                        clustClosest = center[0]
+                self.clusters[clustClosest].addGate(self.gates[gk])
+                self.gates[gk].addCluster(self.clusters[clustClosest])
+
+            # Compute center of mass for each cluster
+            centerOfMass = list()
+            for ck in self.clusters:
+                sumx = 0
+                sumy = 0
+                if len(self.clusters[ck].gates) > 0:
+                    for gk in self.clusters[ck].gates:
+                        sumx += self.clusters[ck].gates[gk].x
+                        sumy += self.clusters[ck].gates[gk].y
+                    centerOfMass.append(( sumx/len(self.clusters[ck].gates), sumy/len(self.clusters[ck].gates) ))
+                else:
+                    # If a cluster does not have any gate, get the old value.
+                    # This is OK since self.clusters is read in the same order as <centers>.
+                    centerOfMass.append( centers[len(centerOfMass)] )
+            centers = centerOfMass
+
+        # print(centers)
+        # print(centerOfMass)
+
+
+
+
+
+
+
+
+        clusterInstancesStr = ""
+        for ck in self.clusters:
+            clusterInstancesStr += str(self.clusters[ck].id)
+            for gk in self.clusters[ck].gates:
+                clusterInstancesStr += " " + str(self.clusters[ck].gates[gk].name)
+            clusterInstancesStr += "\n"
+
+        with open("ClustersInstances.out", 'w') as f:
+            f.write(clusterInstancesStr)
+
+        sys.exit()
+
+
+        
+
+        # TODO Don't forget to set the area of the cluster to the gateArea before leaving the function.
+
+        # # Create output file
+        # clustersOutStr = ""
+        # for ck in self.clusters:
+        #     clustersOutStr += str(self.clusters[ck].id) + "\n"
+
+        # logger.debug("Dumping Clusters.out")
+        # with open("Clusters.out", 'w') as file:
+        #     file.write(clustersOutStr)
+
+
 
 
 
@@ -1978,6 +2147,8 @@ if __name__ == "__main__":
                 design.hierarchicalGeometricClustering(clustersTarget)
                 if not SIG_SKIP:
                     design.clusterConnectivity()
+            elif "kmeans" in clusteringMethod:
+                design.kmeans(clustersTarget, clusteringMethod)
         design.clusterArea()
 
     os.chdir(output_dir)
