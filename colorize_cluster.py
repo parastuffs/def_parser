@@ -1,7 +1,10 @@
 import def_parser
-import Image
+from PIL import Image
 import random
 import os
+
+# Scale factor from 1um. 10 => 100nm means 1 pixel is 100 nm
+SCALE_FACTOR = 1
 
 colors = [  [53, 235, 30],
             [30, 230, 235],
@@ -19,7 +22,7 @@ colors = [  [53, 235, 30],
 if __name__ == "__main__":
 
 
-    clusterInsFile = "/home/para/dev/def_parser/2018-03-15_14-59-54/flipr_progressive_8/ClustersInstances.out"
+    clusterInsFile = "/home/para/dev/def_parser/2019-07-16_16-16-09_smallboom_kmeans-geometric/SmallBOOM_kmeans-geometric_100/ClustersInstances.out"
     tech = ""
 
     if "ldpc-4x4-serial" in clusterInsFile:
@@ -57,6 +60,11 @@ if __name__ == "__main__":
         tech = "45nm"
         def_parser.MEMORY_MACROS = True
         def_parser.UNITS_DISTANCE_MICRONS = 1000
+    elif "smallboom" in clusterInsFile:
+        def_parser.deffile = "SmallBOOM_CDN45/SmallBOOM.def"
+        tech = "gsclib045"
+        def_parser.MEMORY_MACROS = False
+        def_parser.UNITS_DISTANCE_MICRONS = 2000
 
 
     def_parser.extractStdCells(tech)
@@ -75,8 +83,8 @@ if __name__ == "__main__":
     def_parser.design.ReadArea()
     def_parser.design.ExtractCells()
 
-    imgW = int(def_parser.design.width*10) # Width of the design in 10^-1 um
-    imgH = int(def_parser.design.height*10)
+    imgW = int(def_parser.design.width*SCALE_FACTOR) # Width of the design in 10^-1 um
+    imgH = int(def_parser.design.height*SCALE_FACTOR)
     imgSize = (imgW) * (imgH)
     data = [0] * imgSize
 
@@ -100,7 +108,7 @@ if __name__ == "__main__":
             y = def_parser.design.gates.get(gate).y
             # print x
             # print y
-            index = (int(y*10) * (imgW) ) + int(x*10)
+            index = (int(y*SCALE_FACTOR) * (imgW) ) + int(x*SCALE_FACTOR)
             data[index] = (r, g, b)
 
     print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
