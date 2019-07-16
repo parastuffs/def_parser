@@ -14,6 +14,9 @@ Options:
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     --digest                Print design's info and exit.
     -h --help               Print this help
+
+Note:
+    If you want a one-to-one clustering, set the CLUSTER_AMOUNT to 0.
 """
 
 
@@ -46,8 +49,6 @@ deffile = ""
 
 # Amount of clusters wished
 clustersTarget = 3000
-# Actual amount of clusters
-clustersTotal = 0 # Ugly as F global variable. Replace with len(self.clusters)? TODO
 
 # clusteringMethod = "Naive_Geometric"
 
@@ -657,7 +658,6 @@ class Design:
      #######   #########   #######    #######       ##      #########  ##     ##  
 
     def clusterize(self):
-        global clustersTotal
         logger.info("Clusterizing...")
 
         # The first, naive, implementation is to extract clusters from the design with the same aspect ratio.
@@ -706,7 +706,6 @@ class Design:
                     originY += newClusterHeight
 
         logger.info("Total cluster created: {}".format(count))
-        clustersTotal = count
 
         # TODO 'Clusters.out' should be a paramater/argument/global variable?
         logger.debug("Dumping Clusters.out")
@@ -860,7 +859,6 @@ class Design:
         """
         Hierarchical clustering: split the design in two, then each part in two again, etc.
         """
-        global clustersTotal
         global SIG_SKIP
         SIG_SKIP = False
 
@@ -922,8 +920,6 @@ class Design:
         with open("Clusters.out", 'w') as file:
             file.write(clustersOutStr)
 
-        clustersTotal = len(self.clusters)
-
 
         # for ck in self.clusters:
         #     cluster = self.clusters[ck]
@@ -950,7 +946,6 @@ class Design:
 ##    ##   ##     ##  ##     ###  ##    ##   
 ##     ##  ##     ##  ##      ##  ######   
     def randomClusterize(self, clustersTarget):
-        global clustersTotal
 
         # TODO use the __init__ method of the object Cluster
         """
@@ -963,7 +958,6 @@ class Design:
             newCluster = Cluster(0, 0, 0, [0, 0], x)
             self.clusters[newCluster.id] = newCluster
             clusterListStr += str(newCluster.id) + "\n"
-        clustersTotal = len(self.clusters)
 
         logger.debug("Dumping Clusters.out")
         with open("Clusters.out", 'w') as file:
@@ -1020,7 +1014,6 @@ class Design:
         Each cluster is one gate.
         """
         logger.info("Clusterizing...")
-        global clustersTotal
         clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
 
@@ -1044,8 +1037,6 @@ class Design:
             clusterListStr += str(cluster.id) + "\n"
             clusterInstancesStr += str(cluster.id)
             clusterInstancesStr += " " + str(self.gates[key].name) + "\n"
-
-        clustersTotal = len(self.gates)
 
         # TODO 'Clusters.out' should be a paramater/argument/global variable?
         logger.debug("Dumping Clusters.out")
@@ -1074,7 +1065,6 @@ class Design:
         Create clusters until the <objective> wirelength is converted into inracluster wires.
         """
         logger.info("Clusterizing...")
-        global clustersTotal
 
         # Stop point for the clustering, the area disblanced limit has been reached.
         criticalRatioReached = False
@@ -1141,7 +1131,6 @@ class Design:
 
 
 
-        clustersTotal = len(self.clusters)
         minWL = netLengths[0] # Do not use the min() function, I want to fetch the first one. This expects the array to be sorted at first, however.
 
         while (minWL < objective and len(netNames) > 0 and not criticalRatioReached) :
@@ -1265,13 +1254,15 @@ class Design:
         else:
             return float(part2Area) / (part1Area + part2Area)
 
-     #######   ##         ##     ##   #######   ##########   #######     #####    ##      ##  
-    ##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ###     ##  
-    ##         ##         ##     ##  ##             ##      ##         ##     ##  ## ##   ##  
-    ##         ##         ##     ##   #######       ##      ##         ##     ##  ##  ##  ##  
-    ##         ##         ##     ##         ##      ##      ##         ##     ##  ##   ## ##  
-    ##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ##     ###  
-     #######   #########   #######    #######       ##       #######     #####    ##      ##  
+
+
+ #######   ##         ##     ##   #######   ##########   #######     #####    ##      ##  
+##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ###     ##  
+##         ##         ##     ##  ##             ##      ##         ##     ##  ## ##   ##  
+##         ##         ##     ##   #######       ##      ##         ##     ##  ##  ##  ##  
+##         ##         ##     ##         ##      ##      ##         ##     ##  ##   ## ##  
+##     ##  ##         ##     ##  ##     ##      ##      ##     ##  ##     ##  ##     ###  
+ #######   #########   #######    #######       ##       #######     #####    ##      ##  
 
     def clusterConnectivity(self):
         """
@@ -1294,6 +1285,8 @@ class Design:
         clusterNetSet = dict() # Dictionary of sets.
 
         spaningNetsUnique = dict() # This dicitonary contains all the nets that span over more than one cluster. The difference with the other dictionaries is that this one contains each net only once. This will be used to compute the total inter-cluster wirelength.
+
+        clustersTotal = len(self.clusters)
 
         for ck in self.clusters:
             cluster = self.clusters[ck]
