@@ -9,7 +9,8 @@ Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
                             ccx, ldpc-4x4-serial, ldpc-4x4 or smallboom.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
-                            Naive_Geometric, hierarchical-geometric kmeans-geometric or kmeans-random. [default: random]
+                            Naive_Geometric, hierarchical-geometric, kmeans-geometric 
+                            or kmeans-random. [default: random]
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     --digest                Print design's info and exit.
@@ -128,6 +129,22 @@ def heapSort(arr, cloneArr):
         cloneArr[i], cloneArr[0] = cloneArr[0], cloneArr[i]
         heapify(arr, i, 0, cloneArr)
 
+def EuclideanDistance(a, b):
+    """
+    Compute the euclidean distance between two points.
+
+    Parameters
+    ----------
+    a : tuple
+        Pair of float (x, y)
+    b : tuple
+        Pair of float (x, y)
+
+    Returns
+    -------
+    float
+    """
+    return sqrt( (a[0] - b[0])**2 + (a[1] - b[1])**2 )
 
 
 class Design:
@@ -1305,12 +1322,15 @@ class Design:
         ----------
         clustersTarget : int
             Amount of clusters we want to create.
+        clusteringMethod : str
+            Sets the precise method to generate the first centers of gravity,
+            "kmeans-geometric" or "kmeans-random".
         """
 
         logger.info("Creating {} clusters using kmeans.".format(clustersTarget))
 
         # Number or time we update the center of gravity from the center of mass.
-        NRUNS = 30
+        NRUNS = 300
 
 
         if clusteringMethod == "kmeans-geometric":
@@ -1348,12 +1368,19 @@ class Design:
 
         # print(centers)
 
-        for run in range(NRUNS):
+        # Run the kmeans algo
+        run = 0
+        convergence = False
+        convCriteria = 1 * self.agw
+        centerSkew = list()
+        while run < NRUNS and not convergence:
+            run += 1
+            centerSkewTmp = list()
             # Reset clusters
             self.clusters = dict()
 
             for i in enumerate(centers):
-                cluster =  Cluster(0, 0, 0, 0, i[0])
+                cluster =  Cluster(0, 0, 0, [0, 0], i[0])
                 self.clusters[cluster.id] = cluster
 
             # Place gates in closest cluster
@@ -1361,7 +1388,8 @@ class Design:
                 disClosest = float('inf')
                 clustClosest = 0
                 for center in enumerate(centers):
-                    disCenter = sqrt( (self.gates[gk].x - center[1][0])**2 + (self.gates[gk].y - center[1][1])**2 )
+                    # disCenter = sqrt( (self.gates[gk].x - center[1][0])**2 + (self.gates[gk].y - center[1][1])**2 )
+                    disCenter = EuclideanDistance( (self.gates[gk].x, self.gates[gk].y), center[1])
                     if disCenter < disClosest:
                         disClosest = disCenter
                         # The id of the center is the id of the cluster
@@ -1371,6 +1399,8 @@ class Design:
 
             # Compute center of mass for each cluster
             centerOfMass = list()
+            # By default, consider we have reached convergence, then check if otherwise.
+            # convergence = True
             for ck in self.clusters:
                 sumx = 0
                 sumy = 0
@@ -1379,22 +1409,35 @@ class Design:
                         sumx += self.clusters[ck].gates[gk].x
                         sumy += self.clusters[ck].gates[gk].y
                     centerOfMass.append(( sumx/len(self.clusters[ck].gates), sumy/len(self.clusters[ck].gates) ))
+                    centerSkewTmp.append(EuclideanDistance(centerOfMass[-1], centers[len(centerOfMass)-1]))
+                    # if EuclideanDistance(centerOfMass[-1], centers[len(centerOfMass)-1]) > convCriteria:
+                    #     convergence = False
                 else:
                     # If a cluster does not have any gate, get the old value.
                     # This is OK since self.clusters is read in the same order as <centers>.
-                    centerOfMass.append( centers[len(centerOfMass)] )
+                    centerOfMass.append( centers[len(centerOfMass)-1] )
+            percentile = np.percentile(centerSkewTmp, 95)
+            if percentile < convCriteria:
+                convergence = True
+            centerSkew.append(centerSkewTmp)
             centers = centerOfMass
+            logger.debug("Run {}, 95th percentile: {} ({} AGW)".format(run, percentile, percentile/self.agw))
+        logger.info("Kmeans runs: {}".format(run))
+        plt.figure()
+        plt.boxplot(centerSkew)
+        plt.savefig('{}_{}_{}_centersSkew_nrun.png'.format(self.name, len(self.clusters), clusteringMethod))
+        # plt.show()
 
-        # print(centers)
-        # print(centerOfMass)
+        # Set clusters area
+        for ck in self.clusters:
+            area = 0
+            for gk in self.clusters[ck].gates:
+                area += self.clusters[ck].gates[gk].getArea()
+            self.clusters[ck].setGateArea(area)
+            self.clusters[ck].area= area
+            # print(self.clusters[ck].getGateArea())
 
-
-
-
-
-
-
-
+        # Create ClustersInstances.out
         clusterInstancesStr = ""
         for ck in self.clusters:
             clusterInstancesStr += str(self.clusters[ck].id)
@@ -1405,21 +1448,16 @@ class Design:
         with open("ClustersInstances.out", 'w') as f:
             f.write(clusterInstancesStr)
 
-        sys.exit()
+        # sys.exit()
 
+        # Create output file
+        clustersOutStr = ""
+        for ck in self.clusters:
+            clustersOutStr += str(self.clusters[ck].id) + "\n"
 
-        
-
-        # TODO Don't forget to set the area of the cluster to the gateArea before leaving the function.
-
-        # # Create output file
-        # clustersOutStr = ""
-        # for ck in self.clusters:
-        #     clustersOutStr += str(self.clusters[ck].id) + "\n"
-
-        # logger.debug("Dumping Clusters.out")
-        # with open("Clusters.out", 'w') as file:
-        #     file.write(clustersOutStr)
+        logger.debug("Dumping Clusters.out")
+        with open("Clusters.out", 'w') as file:
+            file.write(clustersOutStr)
 
 
 
@@ -2149,6 +2187,7 @@ if __name__ == "__main__":
                     design.clusterConnectivity()
             elif "kmeans" in clusteringMethod:
                 design.kmeans(clustersTarget, clusteringMethod)
+                design.clusterConnectivity()
         design.clusterArea()
 
     os.chdir(output_dir)
