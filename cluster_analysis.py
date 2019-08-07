@@ -8,7 +8,6 @@ Options:
     -h --help       Print this help
 """
 
-from __future__ import division
 from docopt import docopt
 import os
 import logging, logging.config
