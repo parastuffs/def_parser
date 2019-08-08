@@ -208,7 +208,7 @@ class Design:
         logger.info("Height: {}".format(self.height))
         logger.info("Aspect ratio: {}".format(self.width/self.height))
         logger.info("Nets: {}".format(len(self.nets)))
-        logger.info("Total wirelength: {}".format(locale.format("%d", self.totalWireLength, grouping=True)))
+        logger.info("Total wirelength: {}".format(locale.format_string("%d", self.totalWireLength, grouping=True)))
         logger.info("Gates: {}".format(len(self.gates)))
         n = 0
         widths = []
@@ -1722,7 +1722,7 @@ class Design:
         self.totalInterClusterWL = 0
         for key in spaningNetsUnique:
             self.totalInterClusterWL += spaningNetsUnique[key].wl
-        logger.info("Total inter-cluster wirelength: {}, which is {}% of the total wirelength.".format(locale.format("%d", self.totalInterClusterWL, grouping=True), self.totalInterClusterWL*100/self.totalWireLength))
+        logger.info("Total inter-cluster wirelength: {}, which is {}% of the total wirelength.".format(locale.format_string("%d", self.totalInterClusterWL, grouping=True), self.totalInterClusterWL*100/self.totalWireLength))
         logger.info("Inter-cluster nets: {}, which is {}% of the total amount of nets.".format(len(spaningNetsUnique), len(spaningNetsUnique) * 100 / len(self.nets)))
 
 
