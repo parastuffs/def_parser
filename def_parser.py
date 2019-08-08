@@ -267,7 +267,7 @@ class Design:
         for kn in self.nets:
             i = 0
             dists = list()
-            gatekeys = self.nets[kn].gates.keys()
+            gatekeys = list(self.nets[kn].gates.keys())
             # print gatekeys
             if len(gatekeys) > 1:
                 while i < len(gatekeys):
@@ -291,7 +291,7 @@ class Design:
         # manDistStr = "Net name, gate A, gate B, Manhattan distance (um), Manhattan distance (agw)\n"
         for kn in self.nets:
             if len(self.nets[kn].gates) > 1:
-                kg = self.nets[kn].gates.keys()
+                kg = list(self.nets[kn].gates.keys())
                 for i in range(len(kg)):
                     for j in range(i+1, len(kg)):
                         # logger.debug("i:{}, j:{}".format(i, j))
@@ -785,7 +785,7 @@ class Design:
         """
 
         checkClusterGates = 0 # Total amount of gates across all clusters. Check value.
-        gateKeys = self.gates.keys() # Dump keys from the gates dictionary
+        gateKeys = list(self.gates.keys()) # Dump keys from the gates dictionary
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
         for ck in self.clusters:
             cluster = self.clusters[ck]
@@ -1020,7 +1020,7 @@ class Design:
         For each gate in the design, choose a random cluster.
         """
         for k in self.gates:
-            clusterID = random.choice(self.clusters.keys())
+            clusterID = random.choice(list(self.clusters.keys()))
             self.gates[k].addCluster(self.clusters[clusterID])
             self.clusters[clusterID].setGateArea(self.clusters[clusterID].getGateArea() + self.gates[k].getArea())
             self.clusters[clusterID].addGate(self.gates[k])
@@ -1069,7 +1069,7 @@ class Design:
         clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
 
-        for i, key in enumerate(self.gates.keys()):
+        for i, key in enumerate(list(self.gates.keys())):
             width = self.gates[key].width
             height = self.gates[key].height
             area = self.gates[key].getArea()
@@ -1141,7 +1141,7 @@ class Design:
 
 
             # Create the basic clusters containing only one gate.
-            for i, key in enumerate(self.gates.keys()):
+            for i, key in enumerate(list(self.gates.keys())):
                 width = self.gates[key].width
                 height = self.gates[key].height
                 area = self.gates[key].getArea()
@@ -1232,7 +1232,7 @@ class Design:
                         clusterBase.area = clusterBase.getGateArea()
                         # Remove the cluster from the Design list.
                         # If it's not in the dictionary, it simply means it was deleted in a previous step.
-                        if clusterToMerge.id in self.clusters.keys():
+                        if clusterToMerge.id in list(self.clusters.keys()):
                             del self.clusters[clusterToMerge.id]
                 minWL = netLengths[0]
                 # if round(objective/clustersTotal, 2) in checkpoints:
@@ -1260,7 +1260,7 @@ class Design:
         # Change the cluster IDs so that there is no gap.
         logger.debug("Update clusters ID to remove gaps.")
         clustersTotal = len(self.clusters)
-        clusterKeys = self.clusters.keys()
+        clusterKeys = list(self.clusters.keys())
         for i, k in enumerate(clusterKeys):
             cluster = self.clusters[k]
             cluster.id = i
@@ -1730,7 +1730,7 @@ class Design:
         # TODO Store the files in a seperate folder depending on the clustering.
         clusterAreaOut = "Name Type InstCount Boundary Area\n" # Clusters info to dump into 'ClustersArea.out'
 
-        clusterKeys = self.clusters.keys()
+        clusterKeys = list(self.clusters.keys())
         for ck in clusterKeys:
             cluster = self.clusters[ck]
             # Set the line corresponding to this cluster for the information dumping into clustersArea.out
