@@ -37,6 +37,10 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import bst
+from Classes.Cluster import *
+from Classes.Gate import *
+from Classes.Net import *
+from Classes.Pin import *
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
@@ -1789,161 +1793,6 @@ class Design:
 
     def getAspectRatio(self):
         return self.width/self.height
-
-
-
-        ##      ##  #########  ##########  
-        ###     ##  ##             ##      
-        ## ##   ##  ##             ##      
-        ##  ##  ##  ######         ##      
-        ##   ## ##  ##             ##      
-        ##     ###  ##             ##      
-####### ##      ##  #########      ##      
-    
-
-class Net:
-    def __init__(self, name):
-        self.name = name
-        self.ID = 0
-        self.wl = 0
-        self.gates = dict()
-        self.pins = dict()
-        # Gates dispersion inside of the net.
-        # A value of '0' means there is eitheir no gate or only one gate in the net.
-        self.dispersion = 0
-
-    def addGate(self, gate):
-        """
-        gate as Gate object
-        """
-        self.gates[gate.name] = gate
-
-    def addPin(self, pin):
-        """
-        pin as Pin object
-        """
-        self.pins[pin.name] = pin
-
-    def setLength(self, length):
-        """
-        Total wire length, int.
-        """
-        self.wl = length
-
-    def setdispersion(self, dispersion):
-        self.dispersion = dispersion
-
-
-
-         #######      ###     ##########  #########  
-        ##           ## ##        ##      ##         
-        ##          ##   ##       ##      ##         
-        ##   ####  ##     ##      ##      ######     
-        ##     ##  #########      ##      ##         
-        ##     ##  ##     ##      ##      ##         
-####### ########   ##     ##      ##      #########
-
-class Gate:
-    def __init__(self, name):
-        self.name = name
-        self.x = 0
-        self.y = 0
-        self.width = 0
-        self.height = 0
-        self.stdCell = ""
-        self.nets = dict() # key: net name, value: Net object
-        self.cluster = None # Cluster object
-
-    def setX(self, x):
-        self.x = x
-
-    def setY(self, y):
-        self.y = y
-
-    def setWidth(self, width):
-        self.width = width
-
-    def setHeight(self, height):
-        self.height = height
-
-    def setStdCell(self, stdCell):
-        self.stdCell = stdCell
-
-    def getStdCell(self):
-        return self.stdCell
-
-    def digest(self):
-        logger.info("Gate {} at ({}, {})".format(self.name, self.x, self.y))
-
-    def getArea(self):
-        return self.width * self.height
-
-    def addNet(self, net):
-        self.nets[net.name] = net
-
-    def addCluster(self, cluster):
-        """
-        cluster: Cluster object
-        """
-        self.cluster = cluster
-
-
-
-
-        ########   ########   ##      ##  
-        ##     ##     ##      ###     ##  
-        ##     ##     ##      ## ##   ##  
-        #######       ##      ##  ##  ##  
-        ##            ##      ##   ## ##  
-        ##            ##      ##     ###  
-####### ##         ########   ##      ##  
-
-class Pin:
-    def __init__(self, name):
-        self.name = name
-        self.x = 0
-        self.y = 0
-
-    def setX(self, x):
-        self.x = x
-
-    def setY(self, y):
-        self.y = y
-
-    def digest(self):
-        logger.info("Pin {} at ({}, {})".format(self.name, self.x, self.y))
-
-
-
-         #######   ##         ##     ##   #######   ##########  #########  ########   
-        ##     ##  ##         ##     ##  ##     ##      ##      ##         ##     ##  
-        ##         ##         ##     ##  ##             ##      ##         ##     ##  
-        ##         ##         ##     ##   #######       ##      ######     ########   
-        ##         ##         ##     ##         ##      ##      ##         ##   ##    
-        ##     ##  ##         ##     ##  ##     ##      ##      ##         ##    ##   
-#######  #######   #########   #######    #######       ##      #########  ##     ##  
-
-class Cluster:
-    def __init__(self, width, height, area, origin, identifier):
-        '''
-        origin is an array of two coordinates: (x, y)
-        '''
-        self.id = identifier
-        self.area = area
-        self.width = width
-        self.height = height
-        self.origin = origin
-        self.gates = dict()
-        self.gateArea = 0 # Cumulated area of all the gates in the cluster
-
-    def addGate(self, gate):
-        self.gates[gate.name] = gate
-
-    def setGateArea(self, area):
-        self.gateArea = area
-
-    def getGateArea(self):
-        return self.gateArea
 
 
 
