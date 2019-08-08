@@ -25,7 +25,6 @@ from __future__ import division # http://stackoverflow.com/questions/1267869/how
 from PIL import Image
 from math import *
 import copy
-from sets import Set
 import locale
 import os
 import shutil
@@ -1194,7 +1193,7 @@ class Design:
                 # Check that <net> is not entirely contained inside a single cluster.
                 # This is not handled the most efficient way, but it sure is easy.
                 singleCluster = True
-                netClusters = Set()
+                netClusters = set()
                 for k in net.gates:
                     gate = net.gates[k]
                     netClusters.add(gate.cluster.id)
@@ -1551,7 +1550,7 @@ class Design:
             cluster = self.clusters[ck]
             connectivity[cluster.id] = []
             connectivityUniqueNet[cluster.id] = []
-            clusterNetSet[cluster.id] = Set()
+            clusterNetSet[cluster.id] = set()
             clusterGateArea = 0 # Cumulated area of the gates in the cluster
             # print "Source cluster: " + str(cluster.id)
             for key in cluster.gates:
