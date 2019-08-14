@@ -7,7 +7,7 @@ Usage:
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
-                            ccx, ldpc-4x4-serial, ldpc-4x4 or smallboom.
+                            ccx, ldpc-4x4-serial, ldpc-4x4, smallboom or armm0.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric 
                             or kmeans-random. [default: random]
@@ -1965,6 +1965,11 @@ if __name__ == "__main__":
         deffile = "SmallBOOM_CDN45/SmallBOOM.def"
         UNITS_DISTANCE_MICRONS = 2000
         stdCellsTech = "gsclib045"
+    elif args["--design"] == "armm0":
+        deffile = "armM0/ArmM0_all.def"
+        UNITS_DISTANCE_MICRONS = 2000
+        stdCellsTech = "gsclib045"
+    print(stdCellsTech)
 
     if args["--clust-meth"]:
         clusteringMethod = args["--clust-meth"]
