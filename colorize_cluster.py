@@ -22,7 +22,7 @@ colors = [  [53, 235, 30],
 if __name__ == "__main__":
 
 
-    clusterInsFile = "/home/para/dev/def_parser/2019-07-16_16-16-09_smallboom_kmeans-geometric/SmallBOOM_kmeans-geometric_100/ClustersInstances.out"
+    clusterInsFile = "/home/para/dev/def_parser/2019-08-02_13-39-43_smallboom_OneToOne/_progressive_8/ClustersInstances.out"
     tech = ""
 
     if "ldpc-4x4-serial" in clusterInsFile:

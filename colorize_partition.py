@@ -1,5 +1,6 @@
 import def_parser
-import Image
+# import Image
+from PIL import Image
 import random
 from natsort import natsorted # https://pypi.python.org/pypi/natsort
 import os
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     # partitionFile = "/home/para/dev/metis_unicorn/temp_design/metis_02_1-NoWires_area.hgr.part"
     # partitionFile = "/home/para/dev/def_parser/2018-01-24_19-37-08/BoomCore_random_9/partitions_2018-02-20_13-03-40/metis_02_1-NoWires_area.hgr.part"
     # mainDir = "/home/para/dev/def_parser/2018-03-14_19-51-44"
-    mainDir = "//home/para/dev/def_parser/2018-03-13_10-36-02"
+    mainDir = "/home/para/dev/def_parser/2019-05-20_13-13-11_ldpc_hierarchical-geometric/"
 
     def_parser.design = def_parser.Design()
     def_parser.design.ReadArea()
@@ -79,12 +80,12 @@ if __name__ == "__main__":
                                     index = (int(y*10) * (imgW) ) + int(x*10)
                                     data[index] = partColors[int(line.split()[1])]
 
-                            print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
+                            print("Create the image (" + str(imgW) + ", " + str(imgH) + ")")
                             img = Image.new('RGB', (imgW, imgH))
-                            print "Put data"
+                            print("Put data")
                             img.putdata(data)
                             outfile = os.path.join(partitionDir, clusterDir.split('/')[-1] + "_" + partitionFile.split('.')[0] + ".png")
-                            print "save image " + outfile
+                            print("save image " + outfile)
                             img.save(outfile)
                         elif "03" in partitionFile and partitionFile.split('.')[-1] == "part":
 
@@ -99,10 +100,10 @@ if __name__ == "__main__":
                                     index = (int(y*10) * (imgW) ) + int(x*10)
                                     data[index] = partColors[int(line.split()[1])]
 
-                            print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
+                            print("Create the image (" + str(imgW) + ", " + str(imgH) + ")")
                             img = Image.new('RGB', (imgW, imgH))
-                            print "Put data"
+                            print("Put data")
                             img.putdata(data)
                             outfile = os.path.join(partitionDir, clusterDir.split('/')[-1] + "_" + partitionFile.split('.')[0] + ".png")
-                            print "save image " + outfile
+                            print("save image " + outfile)
                             img.save(outfile)

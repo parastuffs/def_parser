@@ -1,11 +1,13 @@
 import def_parser
-import Image
+from PIL import Image
 
 
 
 if __name__ == "__main__":
 
-    def_parser.extractStdCells()
+    stdCellsTech = "gsclib045"
+    
+    def_parser.extractStdCells(stdCellsTech)
     if def_parser.MEMORY_MACROS:
         def_parser.extractMemoryMacros(14,4)
 
@@ -16,6 +18,8 @@ if __name__ == "__main__":
     # def_parser.deffile = "7nm_Jul2017/flipr.def"
     # def_parser.deffile = "7nm_Jul2017/ccx.def"
     def_parser.deffile = "7nm_Jul2017/SPC/spc.def" # Don't forget to turn the MEMORY_MACROS on.
+    def_parser.deffile = "SmallBOOM_CDN45/SmallBOOM.def"
+    def_parser.deffile = "armM0/ArmM0_all.def"
 
     def_parser.design = def_parser.Design()
     def_parser.design.ReadArea()
@@ -32,11 +36,11 @@ if __name__ == "__main__":
     	index = (int(y*10) * (imgW) ) + int(x*10)
     	data[index] = 255
 
-    print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
+    print("Create the image (" + str(imgW) + ", " + str(imgH) + ")")
     img = Image.new('L', (imgW, imgH))
-    print "Put data"
+    print("Put data")
     img.putdata(data)
-    print "save image"
+    print("save image")
     img.save('out.png')
     # print "show image"
     # img.show()
