@@ -7,7 +7,7 @@ Usage:
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
-                            ccx, ldpc-4x4-serial, ldpc-4x4, smallboom or armm0.
+                            ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric 
                             or kmeans-random. [default: random]
@@ -225,35 +225,35 @@ class Design:
         self.agw = np.mean(widths)
         logger.info("Average gate width: {}".format(self.agw))
 
-        # # Gates dispersion
-        # logger.info("Compute average gate dispersion")
-        # self.GatesDispersion()
-        # dispersions = list()
-        # nMax = 5 # Number of max values we want to check
-        # maxdisp = [0] * nMax
-        # maxdispnet = [None] * nMax
-        # for k, net in self.nets.items():
-        #     if len(net.gates) > 2:
-        #         dispersions.append(net.dispersion)
-        #         if net.dispersion > min(maxdisp):
-        #             maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
-        #             maxdispnet[maxdisp.index(min(maxdisp))] = net
-        # logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
-        # for i in range(len(maxdisp)):
-        #     # logger.info("Max dispersion net gates info, {}:".format(i))
-        #     dispx = list()
-        #     dispy = list()
-        #     for k, gate in maxdispnet[i].gates.items():
-        #         # logger.info("x: {}, y: {}".format(gate.x, gate.y))
-        #         dispx.append(gate.x)
-        #         dispy.append(gate.y)
-        #     # Find the max and tell me about its topology
-        #     plt.plot(dispx, dispy, 'o')
-        #     plt.axis([0, self.width, 0, self.height])
-        #     plt.figure()
-        # plt.yscale("log")
-        # plt.boxplot(dispersions)
-        # # plt.show()
+        # Gates dispersion
+        logger.info("Compute average gate dispersion")
+        self.GatesDispersion()
+        dispersions = list()
+        nMax = 5 # Number of max values we want to check
+        maxdisp = [0] * nMax
+        maxdispnet = [None] * nMax
+        for k, net in self.nets.items():
+            if len(net.gates) > 2:
+                dispersions.append(net.dispersion)
+                if net.dispersion > min(maxdisp):
+                    maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
+                    maxdispnet[maxdisp.index(min(maxdisp))] = net
+        logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
+        for i in range(len(maxdisp)):
+            # logger.info("Max dispersion net gates info, {}:".format(i))
+            dispx = list()
+            dispy = list()
+            for k, gate in maxdispnet[i].gates.items():
+                # logger.info("x: {}, y: {}".format(gate.x, gate.y))
+                dispx.append(gate.x)
+                dispy.append(gate.y)
+            # Find the max and tell me about its topology
+            plt.plot(dispx, dispy, 'o')
+            plt.axis([0, self.width, 0, self.height])
+            plt.figure()
+        plt.yscale("log")
+        plt.boxplot(dispersions)
+        plt.show()
 
         # Manhattan skew
         # TODO
@@ -1823,6 +1823,8 @@ def extractStdCells(tech):
         lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/" # ccx, spc
     elif tech == "gsclib045":
         lefdir = "/home/para/dev/def_parser/SmallBOOM_CDN45/" # smallboom
+    elif tech == "osu018":
+        lefdir = "/home/para/dev/def_parser/msp430/" # msp430
 
     
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
@@ -1969,6 +1971,10 @@ if __name__ == "__main__":
         deffile = "armM0/ArmM0_all.def"
         UNITS_DISTANCE_MICRONS = 2000
         stdCellsTech = "gsclib045"
+    elif args["--design"] == "msp430":
+        deffile = "msp430/openMSP430.def"
+        UNITS_DISTANCE_MICRONS = 100
+        stdCellsTech = "osu018"
     print(stdCellsTech)
 
     if args["--clust-meth"]:
