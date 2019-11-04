@@ -15,6 +15,8 @@ import datetime
 from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
+import locale
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 GATE_F = "CellCoord.out"
 CLUSTER_F = "ClustersArea.out"
@@ -154,6 +156,214 @@ def clusterGateAssociation(file, clusters, gates):
             gates[l].addCluster(clusters[int(lineSplit[0])])
 
 
+def clusterConnectivity(clusters, nets):
+    """
+    Find out what is the inter-cluster connectivity.
+    """
+
+    RAW_INTERCONNECTIONS = False  # If True, we don't care to which clusters a cluster is connected.
+                                # All we care about is that it's establishing an inter-cluster connection.
+                                # In that case, all clusters are connected to a cluster "0" which corresponds to none cluster ID (they begin at 1).
+                                # If this is true, we go from an O(n^2) algo (loop twice on all clusters) to a O(n).
+
+    logger.info("Establish connectivity")
+    connectivity = dict() # Key: source cluster, values: destination clusters
+    connectivityUniqueNet = dict() # Connectivity, but counting only once every net between clusters
+
+    # In this matrix, a 0 means no connection.
+    # conMatrix = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
+    # conMatrixUniqueNet = [[0 for x in range(clustersTotal)] for y in range(clustersTotal)]
+    
+    clusterNetSet = dict() # Dictionary of sets.
+
+    spaningNetsUnique = dict() # This dicitonary contains all the nets that span over more than one cluster. The difference with the other dictionaries is that this one contains each net only once. This will be used to compute the total inter-cluster wirelength.
+
+    clustersTotal = len(clusters)
+
+    for ck in clusters:
+        cluster = clusters[ck]
+        connectivity[cluster.id] = []
+        connectivityUniqueNet[cluster.id] = []
+        clusterNetSet[cluster.id] = set()
+        clusterGateArea = 0 # Cumulated area of the gates in the cluster
+        # print "Source cluster: " + str(cluster.id)
+        for key in cluster.gates:
+            gateName = cluster.gates[key].name
+            for netKey in cluster.gates[key].nets:
+                net = cluster.gates[key].nets[netKey]
+                for subkey in net.gates:
+                    subgateName = net.gates[subkey].name
+                    if RAW_INTERCONNECTIONS:
+                        # Simply check that the gate selected is not in the same cluster.
+                        if cluster.gates.get(subgateName) == None:
+                            connectivity[cluster.id].append(0)
+                            if netKey not in clusterNetSet[cluster.id]:
+                                # If the net is not yet registered in the cluster, add it.
+                                clusterNetSet[cluster.id].add(netKey)
+                                connectivityUniqueNet[cluster.id].append(0)
+                                if spaningNetsUnique.get(netKey) == None:
+                                    # If the net is not registered as spaning over several clusters, add it.
+                                    spaningNetsUnique[netKey] = net
+
+                    else:
+                        if net.gates[subkey].cluster.id != cluster.id:
+                            if net.gates[subkey].cluster.gates.get(subgateName) != None:
+                                    connectivity[cluster.id].append(net.gates[subkey].cluster.id)
+                                    # conMatrix[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                    if netKey not in clusterNetSet[cluster.id]:
+                                        clusterNetSet[cluster.id].add(netKey)
+                                        connectivityUniqueNet[cluster.id].append(net.gates[subkey].cluster.id)
+                                        # conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                        if spaningNetsUnique.get(netKey) == None:
+                                            # If the net is not registered as spaning over several clusters, add it.
+                                            spaningNetsUnique[netKey] = net
+
+    """
+    This a very primitive connectivity metric.
+    So far, we only compute the total amount of connections between two clusters.
+    This means that a same net could be counted multiples times as long as it connects different gates.
+    """
+    logger.info("Estimating inter-cluster connectivity and exporting it to file inter_cluster_connectivity_{}.csv".format(clustersTotal))
+    s = ""
+    for key in connectivity:
+        s += str(key) + "," + str(len(connectivity[key]))
+        s += "\n"
+    # print s
+    # with open("inter_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
+    #     file.write(s)
+
+
+
+    # if not RAW_INTERCONNECTIONS:
+        # logger.info("Processing inter-cluster connectivity matrix and exporting it to inter_cluster_connectivity_matrix_{}.csv".format(clustersTotal))
+        # """
+        # I want a matrix looking like
+
+        #   1 2 3 4
+        # 1 0 8 9 0
+        # 2 4 0 4 2
+        # 3 5 1 0 3
+        # 4 1 4 2 0
+
+        # with the first row and first column being the cluster index, and the inside of the matrix the amount of connections
+        # going from the cluster on the column to the cluster on the row (e.g. 8 connections go from 1 to 2 and 4 go from 4 to 1).
+        # """
+        # s = ""
+
+        # # First row
+        # for i in range(clustersTotal):
+        #     s += "," + str(i)
+        # s += "\n"
+
+        # for i in range(clustersTotal):
+        #     s += str(i) # First column
+        #     for j in range(clustersTotal):
+        #         s+= "," + str(conMatrix[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+        #     s += "\n"
+        # # print s
+        # with open("inter_cluster_connectivity_matrix_" + str(clustersTotal) + ".csv", 'w') as file:
+        #     file.write(s)
+
+
+        # s = ""
+
+        # # First row
+        # for i in range(clustersTotal):
+        #     s += "," + str(i)
+        # s += "\n"
+
+        # for i in range(clustersTotal):
+        #     s += str(i) # First column
+        #     for j in range(clustersTotal):
+        #         s+= "," + str(conMatrixUniqueNet[i][j] + 1) # '+1' because we store the matrix index with '-1' to balance the fact that the clusters begin to 1, but the connectivity matric begin to 0.
+        #     s += "\n"
+        # # print s
+        # with open("inter_cluster_connectivity_matrix_unique_net_" + str(clustersTotal) + ".csv", 'w') as file:
+        #     file.write(s)
+
+
+
+    logger.info("Processing inter-cluster connectivity without duplicate nets, exporting to inter_cluster_connectivity_unique_nets_{}.csv.".format(clustersTotal))
+    s = ""
+    for key in connectivityUniqueNet:
+        s += str(key) + "," + str(len(connectivityUniqueNet[key]))
+        s += "\n"
+    # print s
+    # with open("inter_cluster_connectivity_unique_nets_" + str(clustersTotal) + ".csv", 'w') as file:
+    #     file.write(s)
+
+    #TODO
+    # # Compute Rent's terminals, a.k.a. clusters external connectivity
+    # for clusterID in connectivityUniqueNet:
+    #     terminals = len(connectivityUniqueNet[clusterID])
+    #     gateNum = len(clusters[clusterID].gates)
+    #     # TODO some clusters appear to have 0 gate. Investigate this, it should not happen.
+    #     # This may actually be because of the geometrical clustering getting too fine.
+    #     if gateNum > 0:
+    #         if gateNum not in self.RentTerminals:
+    #             self.RentTerminals[gateNum] = list()
+    #         self.RentTerminals[gateNum].append(terminals)
+
+
+
+
+    """
+    Intra-cluster connectivity
+    """
+    logger.info("Computing intra-cluster connectivity")
+    connectivityIntra = dict()
+    # Dictionary init
+    for ck in clusters:
+        cluster = clusters[ck]
+        connectivityIntra[cluster.id] = []
+
+
+    for k in nets:
+        net = nets[k]
+        clusterID = -1 # Begin with '-1' to mark the fact that we are looking at the first gate of the net.
+        discardNet = False
+        for key in net.gates:
+            if net.gates[key].cluster.id != clusterID and clusterID != -1:
+                # this gate is not in the same cluster as the previous one. Discard the net.
+                discardNet = True
+                # print "(" + str(net.name) + ") We found a gate in a different cluster: from " + str(clusterID) + " to " + str(net.gates[key].cluster.id) + "(and net.gates[key] is " + str(net.gates[key]) + ")"
+                # print "This concerns the net '" + str(net.name) + "'"
+                # TODO break the loop net.gates here
+                break
+            else:
+                clusterID = net.gates[key].cluster.id
+                # print "(" + str(net.name) + ") Changing the clusterID to " + str(clusterID)
+        if not discardNet and clusterID != -1:
+            # Need the != -1 condition because if we reach this branch with clusterID = -1, it means that the net does not have any gate,
+            # it means that net.gates is empty, and that *can* happen, it's fine.
+            # It's more efficient to check here for clusterID rather than len(net.gates) for every net.
+            # print "(" + str(net.name) + ") inside 'if not discardNet:', clusterID = " + str(clusterID)
+            connectivityIntra[clusterID].append(net.name)
+
+
+
+    logger.info("Processing intra-cluster connectivity, exporting to intra_cluster_connectivity_{}.csv.".format(clustersTotal))
+    s = ""
+    for key in connectivityIntra:
+        s += str(key) + "," + str(len(connectivityIntra[key]))
+        s += "\n"
+    # print s
+    # with open("intra_cluster_connectivity_" + str(clustersTotal) + ".csv", 'w') as file:
+    #     file.write(s)
+
+
+
+    totalInterClusterWL = 0
+    totalWireLength = 0
+    for nk in nets:
+        totalWireLength += nets[nk].wl
+    for key in spaningNetsUnique:
+        totalInterClusterWL += spaningNetsUnique[key].wl
+    logger.info("Total inter-cluster wirelength: {}, which is {}% of the total wirelength.".format(locale.format_string("%d", totalInterClusterWL, grouping=True), totalInterClusterWL*100/totalWireLength))
+    logger.info("Inter-cluster nets: {}, which is {}% of the total amount of nets.".format(len(spaningNetsUnique), len(spaningNetsUnique) * 100 / len(nets)))
+
+
+
 
 if __name__ == "__main__":
 
@@ -212,3 +422,4 @@ if __name__ == "__main__":
             clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
             logger.info("Associate clusters and gates")
             clusterGateAssociation(os.path.join(subdir, CLUSTER_GATE_F), clusters, gates)
+            clusterConnectivity(clusters, nets)
