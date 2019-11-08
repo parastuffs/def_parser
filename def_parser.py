@@ -41,7 +41,7 @@ from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
 from Classes.Pin import *
-locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
 
@@ -253,7 +253,7 @@ class Design:
             plt.figure()
         plt.yscale("log")
         plt.boxplot(dispersions)
-        plt.show()
+        # plt.show()
 
         # Manhattan skew
         # TODO
@@ -644,7 +644,7 @@ class Design:
                                     y2 = int(y2)
                                 # TODO Ternary expressions?
                                 # TODO WEIGHT? cf net clock
-                                netLength += (y2 - y1) + (x2 - x1)
+                                netLength += abs(y2 - y1) + abs(x2 - x1)
 
 
                             netDetails = f.readline().strip()
