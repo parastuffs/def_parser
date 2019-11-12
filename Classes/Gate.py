@@ -8,6 +8,9 @@ class Gate:
         self.stdCell = ""
         self.nets = dict() # key: net name, value: Net object
         self.cluster = None # Cluster object
+        self.cohesion = 0 # average distance between the gate and all other gates in the cluster
+        self.separation = 0 # average distance btween the gate and all other gates in the nearest cluster
+        self.silouhette = 0 # (cohesion - separation)/max(cohesion, separation)
 
     def setX(self, x):
         self.x = x
@@ -41,3 +44,9 @@ class Gate:
         cluster: Cluster object
         """
         self.cluster = cluster
+
+    def setSilouhette(self, s):
+        """
+        Should be between -1 and 1
+        """
+        self.silouhette = s
