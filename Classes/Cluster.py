@@ -28,3 +28,9 @@ class Cluster:
         Should be between -1 and 1
         """
         self.silouhette = s
+
+    def setCohesion(self, c):
+        self.cohesion = c
+
+    def setSeparation(self, s):
+        self.separation = s
