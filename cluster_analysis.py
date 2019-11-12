@@ -10,13 +10,18 @@ Options:
 
 from docopt import docopt
 import os
+import sys
 import logging, logging.config
 import datetime
 from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
 import locale
-locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+try:
+    locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+except locale.Error:
+    locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
+
 
 GATE_F = "CellCoord.out"
 CLUSTER_F = "ClustersArea.out"
@@ -371,7 +376,7 @@ if __name__ == "__main__":
     print(args)
     rootDir = ""
     if args["-d"]:
-        rootDir = args["-d"]
+        rootDir = args["-d"].rstrip('/')
 
     # Load base config from conf file.
     logging.config.fileConfig('log.conf')
@@ -394,18 +399,19 @@ if __name__ == "__main__":
         design = rootDir.split(os.sep)[-1].split('_')[2]
     except:
         design = "Design not found"
+        logger.error(design)
+        sys.exit()
     try:
         method = rootDir.split(os.sep)[-1].split('_')[3]
     except:
         method = "Method not found"
+        logger.error(method)
+        sys.exit()
 
     logger.info("> Design: {}".format(design))
     logger.info("> method: {}".format(method))
 
     logger.info("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-
-    c = Cluster(0,0,0,0,0)
-    c.setGateArea(50)
 
     logger.info("Extracting gates")
     gates = extractGates(os.path.join(rootDir, GATE_F))
