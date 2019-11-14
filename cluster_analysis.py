@@ -13,6 +13,8 @@ import os
 import sys
 import logging, logging.config
 import datetime
+import math
+import numpy as np
 from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
@@ -28,6 +30,22 @@ CLUSTER_F = "ClustersArea.out"
 NET_F = "WLnets.out"
 NET_GATE_F = "CellCoord.out"
 CLUSTER_GATE_F = "ClustersInstances.out"
+
+
+def manhattanDistance(a, b):
+    """
+    Parameters
+    ----------
+    a : arr
+        Array of two float coordinates
+    b : arr
+        Array of two float coordinates
+
+    Return
+    ------
+    Manhattan distance between a and b.
+    """
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
 def extractGates(file):
@@ -370,6 +388,151 @@ def clusterConnectivity(clusters, nets):
 
 
 
+# http://www.geeksforgeeks.org/heap-sort/
+# This code is contributed by Mohit Kumra
+# To heapify subtree rooted at index i.
+# n is size of heap
+def heapify(arr, n, i, cloneArr):
+    largest = i  # Initialize largest as root
+    l = 2 * i + 1     # left = 2*i + 1
+    r = 2 * i + 2     # right = 2*i + 2
+ 
+    # See if left child of root exists and is
+    # greater than root
+    if l < n and arr[i] < arr[l]:
+        largest = l
+ 
+    # See if right child of root exists and is
+    # greater than root
+    if r < n and arr[largest] < arr[r]:
+        largest = r
+ 
+    # Change root, if needed
+    if largest != i:
+        arr[i],arr[largest] = arr[largest],arr[i]  # swap
+        cloneArr[i], cloneArr[largest] = cloneArr[largest], cloneArr[i]
+ 
+        # Heapify the root.
+        heapify(arr, n, largest, cloneArr)
+ 
+# The main function to sort an array of given size
+def heapSort(arr, cloneArr):
+    """
+    arr is the array containing the nets length.
+    cloneArr is the array containing the nets name.
+    The sorting is done on arr, but every moving operation has
+    to be applied on cloneArr as well. This way, we can keep
+    a one to one relationship between the net name and its length.
+    """
+    n = len(arr)
+ 
+    # Build a maxheap.
+    for i in range(n, -1, -1):
+        heapify(arr, n, i, cloneArr)
+ 
+    # One by one extract elements
+    for i in range(n-1, 0, -1):
+        arr[i], arr[0] = arr[0], arr[i]   # swap
+        cloneArr[i], cloneArr[0] = cloneArr[0], cloneArr[i]
+        heapify(arr, i, 0, cloneArr)
+
+
+
+
+def findClosest(g, gates, gsx, gsy):
+    """
+    Parameters
+    ----------
+    g : Gate
+        Gate object of which we want to find the closest neighbour *not* in the same cluster.
+    gates : dict
+        Dictionary of {gate name [str]: Gate object}
+    gsx : arr
+        Array of gate names sorted by abscica
+    gsy : arr
+        Array of gate names sorted by ordinate
+
+    Return
+    ------
+    Gate name [str]
+    """
+
+
+
+def silouhette(clusters, gates):
+    """
+    Compute and set the cohesion, separation and silouhette coefficients of gates and clusters passed as parameters.
+
+    Note that clusters with at most one gate will not contribute to the design coefficients or further analysis.
+
+    As of now, the distance computed is simply Manhattan. But this could be set otherwise.
+    e.g. it could be the distance of only the gates on the same net or the number of connections to other gates (cohesion: in the same cluster, separation: in other cluster, not only the closest).
+    It should be set to reflect the objective of the clustering.
+
+    Parameters
+    ----------
+    clusters : dict
+        dictionary {cluster name [str]: Cluster object}
+    gates : dict
+        dictionary {gate name [str]: Gate object}
+    """
+
+    # Set cohesion first
+    clusterCohesions = list()
+    for ck in clusters:
+        cluster = clusters[ck]
+        gateCohesions = list()
+        for gk in cluster.gates:
+            gate = cluster.gates[gk]
+            for gsk in cluster.gates:
+                subgate = cluster.gates[gsk]
+                # Don't compute the distance with the gate itself
+                distances = list()
+                if gk != gsk:
+                    distances.append(manhattanDistance([gate.x, gate.y], [subgate.x, subgate.y]))
+                if len(distances) > 0:
+                    cohesion = np.mean(distances)
+                    gateCohesions.append(cohesion)
+                else:
+                    cohesion = 0
+                gate.setCohesion(cohesion)
+                # logger.info("Cohesion: {}".format(cohesion))
+        if len(gateCohesions) > 0:
+            clusterCohesion = np.mean(gateCohesions)
+            clusterCohesions.append(clusterCohesion)
+        else:
+            clusterCohesion = 0
+        # logger.info("Cluster {} has a cohesion: {}".format(ck, clusterCohesion))
+    designCohesion = np.mean(clusterCohesions)
+    logger.info("Design cohesion: {}".format(designCohesion))
+
+    # Then separation. The challenge is to find the closest cluster to a gate.
+    # One way could be to find the closest gate not in the same cluster. But how to implement it in less than O(n^2)?
+    # First, I should have two sorted list of the gates, one based the abscica, the second on the ordinate.
+    # Then, for the gate G, I take the two neighbours in both list, and then both neighbours of those four gates.
+    # This should get me a neighbouring circle around G. All those neighbouring gates could be added in a Set as to avoid computing duplicates.
+    # Let's call this Set SN for Set of Neighbours.
+    # If we did not find a suitable gate in this set, we need to expand the boundary.
+    # To do so, first duplicate the set. Then for each element of the set, proceed the same way as for G. This might not be the most efficient,
+    # but thanks to the structure of the sets, the duplicates will be ignored.
+    # Beware not to add G itself to the set.
+    # Keep going until the closest gate to G but in a different cluster is found.
+
+    # => KD-tree you genius. You did it un July.
+
+
+    # First, create the two sorted arrays.
+    gsx = gates.keys()
+    
+
+    for ck in clusters:
+        cluster = clusters[ck]
+        for gk in cluster.gates:
+            gate = cluster.gates[gk]
+            findClosest(gate, gates, gatesSortedX, gatesSortedY)
+
+
+
 if __name__ == "__main__":
 
     args = docopt(__doc__)
@@ -429,3 +592,4 @@ if __name__ == "__main__":
             logger.info("Associate clusters and gates")
             clusterGateAssociation(os.path.join(subdir, CLUSTER_GATE_F), clusters, gates)
             clusterConnectivity(clusters, nets)
+            silouhette(clusters, gates)
