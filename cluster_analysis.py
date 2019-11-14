@@ -522,14 +522,41 @@ def silouhette(clusters, gates):
 
 
     # First, create the two sorted arrays.
-    gsx = gates.keys()
-    
+    gsxNames = gates.keys()
+    gsyNames = gates.keys()
+    gsxCoord = list()
+    gsyCoord = list()
+    for gk in gates:
+        gsxCoord.append(gates[gk].x)
+        gsyCoord.append(gates[gk].y)
+
 
     for ck in clusters:
         cluster = clusters[ck]
         for gk in cluster.gates:
             gate = cluster.gates[gk]
-            findClosest(gate, gates, gatesSortedX, gatesSortedY)
+            # findClosest(gate, gates, gatesSortedX, gatesSortedY)
+
+    # Do it quick and dirty for the moment.
+    for n,gk in enumerate(gates):
+        logger.debug("{}/{}".format(n, len(gates)))
+        distNeigh = list() # Distance with all the neighbours
+        distNeighNames = list()
+        gate = gates[gk]
+        for gsk in gates:
+            if gsk != gk:
+                subgate = gates[gsk]
+                distNeigh.append(manhattanDistance([gate.x, gate.y], [subgate.x, subgate.y]))
+                distNeighNames.append(gsk)
+        heapSort(distNeigh, distNeighNames)
+        separation = 0
+        for i, dist in enumerate(distNeigh):
+            if gates[distNeighNames[i]].cluster.id != gate.cluster.id:
+                separation = dist
+                break
+        gate.separation = separation
+
+
 
 
 
