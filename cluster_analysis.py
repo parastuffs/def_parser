@@ -19,6 +19,7 @@ from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
 import locale
+import matplotlib.pyplot as plt
 try:
     locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 except locale.Error:
@@ -477,34 +478,35 @@ def silouhette(clusters, gates):
         dictionary {gate name [str]: Gate object}
     """
 
-    # Set cohesion first
-    clusterCohesions = list()
-    for ck in clusters:
-        cluster = clusters[ck]
-        gateCohesions = list()
-        for gk in cluster.gates:
-            gate = cluster.gates[gk]
-            for gsk in cluster.gates:
-                subgate = cluster.gates[gsk]
-                # Don't compute the distance with the gate itself
-                distances = list()
-                if gk != gsk:
-                    distances.append(manhattanDistance([gate.x, gate.y], [subgate.x, subgate.y]))
-                if len(distances) > 0:
-                    cohesion = np.mean(distances)
-                    gateCohesions.append(cohesion)
-                else:
-                    cohesion = 0
-                gate.setCohesion(cohesion)
-                # logger.info("Cohesion: {}".format(cohesion))
-        if len(gateCohesions) > 0:
-            clusterCohesion = np.mean(gateCohesions)
-            clusterCohesions.append(clusterCohesion)
-        else:
-            clusterCohesion = 0
-        # logger.info("Cluster {} has a cohesion: {}".format(ck, clusterCohesion))
-    designCohesion = np.mean(clusterCohesions)
-    logger.info("Design cohesion: {}".format(designCohesion))
+    # # Set cohesion first
+    # clusterCohesions = list()
+    # for ck in clusters:
+    #     cluster = clusters[ck]
+    #     gateCohesions = list()
+    #     for gk in cluster.gates:
+    #         gate = cluster.gates[gk]
+    #         for gsk in cluster.gates:
+    #             subgate = cluster.gates[gsk]
+    #             # Don't compute the distance with the gate itself
+    #             distances = list()
+    #             if gk != gsk:
+    #                 distances.append(manhattanDistance([gate.x, gate.y], [subgate.x, subgate.y]))
+    #             if len(distances) > 0:
+    #                 cohesion = np.mean(distances)
+    #                 gateCohesions.append(cohesion)
+    #             else:
+    #                 cohesion = 0
+    #             gate.setCohesion(cohesion)
+    #             # logger.info("Cohesion: {}".format(cohesion))
+    #     if len(gateCohesions) > 0:
+    #         clusterCohesion = np.mean(gateCohesions)
+    #         clusterCohesions.append(clusterCohesion)
+    #     else:
+    #         clusterCohesion = 0
+    #     # logger.info("Cluster {} has a cohesion: {}".format(ck, clusterCohesion))
+    # designCohesion = np.mean(clusterCohesions)
+    # logger.info("Design cohesion: {}".format(designCohesion))
+
 
     # Then separation. The challenge is to find the closest cluster to a gate.
     # One way could be to find the closest gate not in the same cluster. But how to implement it in less than O(n^2)?
@@ -521,41 +523,84 @@ def silouhette(clusters, gates):
     # => KD-tree you genius. You did it un July.
 
 
-    # First, create the two sorted arrays.
-    gsxNames = gates.keys()
-    gsyNames = gates.keys()
-    gsxCoord = list()
-    gsyCoord = list()
-    for gk in gates:
-        gsxCoord.append(gates[gk].x)
-        gsyCoord.append(gates[gk].y)
+    # # First, create the two sorted arrays.
+    # gsxNames = gates.keys()
+    # gsyNames = gates.keys()
+    # gsxCoord = list()
+    # gsyCoord = list()
+    # for gk in gates:
+    #     gsxCoord.append(gates[gk].x)
+    #     gsyCoord.append(gates[gk].y)
 
 
+    # for ck in clusters:
+    #     cluster = clusters[ck]
+    #     for gk in cluster.gates:
+    #         gate = cluster.gates[gk]
+    #         # findClosest(gate, gates, gatesSortedX, gatesSortedY)
+
+    # # Do it quick and dirty for the moment.
+    # for n,gk in enumerate(gates):
+    #     logger.debug("{}/{}".format(n, len(gates)))
+    #     distNeigh = list() # Distance with all the neighbours
+    #     distNeighNames = list()
+    #     gate = gates[gk]
+    #     for gsk in gates:
+    #         if gsk != gk:
+    #             subgate = gates[gsk]
+    #             distNeigh.append(manhattanDistance([gate.x, gate.y], [subgate.x, subgate.y]))
+    #             distNeighNames.append(gsk)
+    #     heapSort(distNeigh, distNeighNames)
+    #     separation = 0
+    #     for i, dist in enumerate(distNeigh):
+    #         if gates[distNeighNames[i]].cluster.id != gate.cluster.id:
+    #             separation = dist
+    #             break
+    #     gate.separation = separation
+
+
+    # Cohesion and separation -- connectivity
+    clusterCohesions = list()
+    clusterSeparations = list()
+    clusterSilouhettes = list()
     for ck in clusters:
         cluster = clusters[ck]
+        gateCohesions = list()
+        gateSeparations = list()
         for gk in cluster.gates:
             gate = cluster.gates[gk]
-            # findClosest(gate, gates, gatesSortedX, gatesSortedY)
-
-    # Do it quick and dirty for the moment.
-    for n,gk in enumerate(gates):
-        logger.debug("{}/{}".format(n, len(gates)))
-        distNeigh = list() # Distance with all the neighbours
-        distNeighNames = list()
-        gate = gates[gk]
-        for gsk in gates:
-            if gsk != gk:
-                subgate = gates[gsk]
-                distNeigh.append(manhattanDistance([gate.x, gate.y], [subgate.x, subgate.y]))
-                distNeighNames.append(gsk)
-        heapSort(distNeigh, distNeighNames)
-        separation = 0
-        for i, dist in enumerate(distNeigh):
-            if gates[distNeighNames[i]].cluster.id != gate.cluster.id:
-                separation = dist
-                break
-        gate.separation = separation
-
+            cohesion = 0
+            separation = 0
+            for nk in gate.nets:
+                net = gate.nets[nk]
+                for gsk in net.gates:
+                    subgate = net.gates[gsk]
+                    if gsk != gk:
+                        if gate.cluster.id != subgate.cluster.id:
+                            separation += 1
+                        else:
+                            cohesion += 1
+            gate.setCohesion(cohesion)
+            gate.setSeparation(separation)
+            gateCohesions.append(cohesion)
+            gateSeparations.append(separation)
+        cohesion = np.mean(gateCohesions)
+        clusterCohesions.append(cohesion)
+        cluster.setCohesion(cohesion)
+        separation = np.mean(gateSeparations)
+        clusterSeparations.append(separation)
+        cluster.setSeparation(separation)
+        silouhette = (cohesion - separation)/max(cohesion, separation)
+        cluster.setSilouhette(silouhette)
+        clusterSilouhettes.append(silouhette)
+    cohesion = np.mean(clusterCohesions)
+    separation = np.mean(clusterSeparations)
+    silouhette = np.mean(clusterSilouhettes) # What I want here, is really a distribution of the silouhettes of all clusters. So I guess this 'mean' is alright instead of computing the design silouhette using the canonical formula. We could do both, probably, if needed.
+    plt.figure()
+    plt.title("Distribution of clusters silouhette")
+    plt.boxplot(clusterSilouhettes)
+    plt.savefig('clusters_silouhette_boxplot.png')
+    # plt.show()
 
 
 
@@ -613,6 +658,7 @@ if __name__ == "__main__":
     for d in os.listdir(rootDir):
         subdir = os.path.join(rootDir, d)
         if os.path.isdir(subdir):
+            os.chdir(subdir)
             logger.info("Working in folder {}".format(subdir))
             logger.info("Extracting clusters")
             clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
