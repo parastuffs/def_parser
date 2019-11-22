@@ -41,7 +41,10 @@ from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
 from Classes.Pin import *
-locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
+try:
+    locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+except locale.Error:
+    locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
 
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
 
