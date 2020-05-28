@@ -41,6 +41,9 @@ from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
 from Classes.Pin import *
+from Classes.Port import *
+from Classes.StdCell import *
+from Classes.GatePin import *
 try:
     locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 except locale.Error:
@@ -349,6 +352,19 @@ class Design:
                     self.setHeight(int(area[7])/UNITS_DISTANCE_MICRONS)
                     self.setArea()
 
+    # def AssignStdCellToGate(self, gate, stdCell):
+    #     """ Assign a standard cell to a gate
+
+    #     Copy all the elements in stdCell into gate, but shift all
+    #     the coordinates to make them absolute and not relative.
+
+    #     Parameters
+    #     ----------
+    #     gate: Gate object
+    #     stdCell: StdCell object
+    #     """
+
+
 
     #########  ##    ##   ##########   #######   #########  ##         ##         
     ##          ##  ##        ##      ##     ##  ##         ##         ##         
@@ -379,6 +395,7 @@ class Design:
                         split.index(";\n")
                     except:
                         gate = Gate(split[1])
+                        # AssignStdCellToGate(gate, macros[split[2]])
                         gate.setStdCell(split[2])
                         # if macros.get(gate.getStdCell()) == None:
                         #     print "Macro not found when looking for cell '" + str(gate.name) + "' of type '" + gate.getStdCell() + "'"
@@ -389,8 +406,8 @@ class Design:
                             unknownCellsCounts += 1
                         else:
                             try:
-                                gate.setWidth(macros.get(gate.getStdCell())[0]) # Get the width from the macros dictionary.
-                                gate.setHeight(macros.get(gate.getStdCell())[1]) # Get the height from the macros dictionary.
+                                gate.setWidth(macros.get(gate.getStdCell()).width) # Get the width from the macros dictionary.
+                                gate.setHeight(macros.get(gate.getStdCell()).height) # Get the height from the macros dictionary.
                             except:
                                 logger.error("Could not find the macro '{}' while parsing the line\n{}\nThis macro might be missing from the LEF file. \nExiting.".format(gate.getStdCell(), line))
                                 sys.exit()
@@ -505,6 +522,9 @@ class Design:
     #########  ##    ##       ##      ##      ##  #########      ##       #######   
 
     def extractNets(self):
+        """
+        lefdefref v5.8, p.261.
+        """
         logger.debug("Reading the def to extract nets.")
 
         endOfNet = False # end of single net
@@ -622,7 +642,7 @@ class Design:
                                 if "MASK" in netDetailsSplit:
                                     for i in range(len(netDetailsSplit)):
                                         if netDetailsSplit[i] == "MASK":
-                                            # "MASK" is always followed by an integer. Trash it alongside.
+                                            # "MASK" is always followed by an integer. Trash it alongside. cf. lefdef reference v5.8 p. 261
                                             del netDetailsSplit[i:i+2]
                                             break
 
@@ -1836,6 +1856,13 @@ def extractStdCells(tech):
     macroWidth = 0
     macroHeight = 0
     # macros = dict()
+    pin = None
+    newPort = False
+    inPin = False
+
+    # TODO cleanup
+    # Useless:
+    # - areaFound
 
     for file in os.listdir(lefdir):
         if file.endswith(".lef"):
@@ -1848,26 +1875,66 @@ def extractStdCells(tech):
                         macroName = line.split()[1] # May need to 'line = line.strip("\n")'
                         # print macroName
                         areaFound = False
+                        macro = StdCell(macroName)
+                        # logger.debug("parsingg macro {}".format(macroName))
 
-                    while inMacro and not areaFound:
+                    while inMacro:
+                    # while inMacro and not areaFound:
                         if 'SIZE' in line:
                             macroWidth = float(line.split()[1])
                             # print macroWidth
+                            macro.setWidth(macroWidth)
                             macroHeight = float(line.split()[3])
                             # print macroHeight
-                            macros[macroName] = [macroWidth, macroHeight]
+                            macro.setHeight(macroHeight)
+                            # macros[macroName] = [macroWidth, macroHeight]
+                            macros[macroName] = macro
                             areaFound = True
+                        elif 'PIN' in line:
+                            pin = GatePin(line.split()[1])
+                            inPin = True
+                        elif inPin and "END {}".format(pin.name) in line:
+                            # End of the PIN statement
+                            # logger.debug("Add pin to macro")
+                            macro.addPin(pin)
+                            inPin = False
+                        elif 'DIRECTION' in line:
+                            pin.setDirection(line.split()[1])
+                        elif 'PORT' in line:
+                            newPort = True
+                        elif inPin and 'RECT' in line:
+                            # Geometry of a PORT from a PIN
+                            # Needs to make sure it's inside a PIN block,
+                            # otherwise we might catch an OBS block (Macro Obstruction Statement).
+                            port = None
+                            if 'MASK' in line:
+                                # Some lines are as such: RECT MASK 2 0.2190 0.0540 0.2430 0.0740 ;
+                                port = Port(x=float(line.split()[3]), y=float(line.split()[4]), width=float(line.split()[5]), height=float(line.split()[6]))
+                            else:
+                                # But most lines are like: RECT 0.1770 0.1200 0.2010 0.1360 ;
+                                port = Port(x=float(line.split()[1]), y=float(line.split()[2]), width=float(line.split()[3]), height=float(line.split()[4]))
+                            pin.addPort(port)
+
                         elif str("END " + macroName) in line:
                             inMacro = False
 
-                        if inMacro and not areaFound:
+                        # if inMacro and not areaFound:
+                        # if inMacro and not areaFound:
                             # We are not about to leave the loop
                             # TODO there must be a non dirty way to do this.
-                            line = f.readline()
+                            # line = f.readline()
+                        line = f.readline()
 
                     line = f.readline()
 
     # print macros
+    # TODO check that the StdCell objects in the macro dictionary are still there. Check that they are not nulled after exiting the loop.
+    for macro in macros.values():
+        logger.debug("macro: {}".format(macro.name))
+        for pin in macro.pins.values():
+            logger.debug("pin: {}".format(pin.name))
+            for port in pin.ports:
+                logger.debug("PORT at ({}, {})".format(port.x, port.y))
 
 
 def extractMemoryMacros(hrows, frows):

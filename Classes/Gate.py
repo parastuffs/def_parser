@@ -1,11 +1,11 @@
 class Gate:
     def __init__(self, name):
         self.name = name
-        self.x = 0
-        self.y = 0
+        self.x = 0 # lower left corner, x
+        self.y = 0 # lower left corner, y
         self.width = 0
         self.height = 0
-        self.stdCell = ""
+        self.stdCell = "" # Str name of the standard cell.
         self.nets = dict() # key: net name, value: Net object
         self.cluster = None # Cluster object
         self.cohesion = 0 # average distance between the gate and all other gates in the cluster
