@@ -267,6 +267,61 @@ class Design:
         # Inter-gate distance
         logger.info("Compute Manhattan inter-gate distance between each pair of connected gates...")
         self.IntergateDistance()
+
+        logger.info("Getting gate size stats...")
+        gateSize = list()
+        for g in self.gates.values():
+            gateSize.append(g.getArea())
+        plt.figure()
+        plt.title("Standard cells sizes")
+        plt.boxplot(gateSize)
+        # plt.show()
+
+        logger.info("Evaluate bounding boxes for every net...")
+        self.ComputeBoundingBox()
+
+
+    def ComputeBoundingBox(self):
+        '''
+        Compute the bounding box (BB) for each net in the design.
+
+        For each net, find the lowest x, lowest y, highest x and highest y.
+        They don't need to belong to the same gate of whatever.
+        They will set the boundaries for the net's BB.
+
+        Once the BB is known, its half-perimeter length (HPL) should give an approximation of the actual wire length.
+
+        In the following, we assume the coordinates origin is in the bottom left.
+        '''
+
+
+        diff = list()
+
+        for net in self.nets.values():
+            botx = float("inf")
+            boty = float("inf")
+            topx = 0
+            topy = 0
+            if len(net.gates) > 1:
+                for gate in net.gates.values():
+                    botx = min(botx, gate.x)
+                    boty = min(boty, gate.y)
+                    topx = max(topx, gate.x+gate.width)
+                    topy = max(topy, gate.y+gate.height)
+                net.bb = [[botx, boty], [topx, topy]]
+                net.computeHPL()
+                diff.append((net.wl - net.hpl)/net.wl)
+                if net.name == "n_43387":
+                    logger.debug("BB: {}, HPL: {}, wl: {}".format(net.bb, net.hpl, net.wl))
+
+        plt.figure()
+        plt.title("Net (WL - HPL)/WL")
+        plt.boxplot(diff)
+        # plt.show()
+
+
+
+
         
 
 
@@ -1929,12 +1984,12 @@ def extractStdCells(tech):
 
     # print macros
     # TODO check that the StdCell objects in the macro dictionary are still there. Check that they are not nulled after exiting the loop.
-    for macro in macros.values():
-        logger.debug("macro: {}".format(macro.name))
-        for pin in macro.pins.values():
-            logger.debug("pin: {}".format(pin.name))
-            for port in pin.ports:
-                logger.debug("PORT at ({}, {})".format(port.x, port.y))
+    # for macro in macros.values():
+    #     logger.debug("macro: {}".format(macro.name))
+    #     for pin in macro.pins.values():
+    #         logger.debug("pin: {}".format(pin.name))
+    #         for port in pin.ports:
+    #             logger.debug("PORT at ({}, {})".format(port.x, port.y))
 
 
 def extractMemoryMacros(hrows, frows):
