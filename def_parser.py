@@ -317,7 +317,7 @@ class Design:
         plt.figure()
         plt.title("Net (WL - HPL)/WL")
         plt.boxplot(diff)
-        # plt.show()
+        plt.show()
 
 
 
@@ -1922,19 +1922,20 @@ def extractStdCells(tech):
     for file in os.listdir(lefdir):
         if file.endswith(".lef"):
             with open(os.path.join(lefdir,file), 'r') as f:
+                logger.debug("Opening {}".format(os.path.join(lefdir,file)))
                 line = f.readline()
                 while line:
 
-                    if 'MACRO' in line:
+                    if 'MACRO' in line and len(line.split()) == 2:
                         inMacro = True
                         macroName = line.split()[1] # May need to 'line = line.strip("\n")'
                         # print macroName
                         areaFound = False
                         macro = StdCell(macroName)
-                        # logger.debug("parsingg macro {}".format(macroName))
+                        # logger.debug("parsing macro '{}'".format(macroName))
 
                     while inMacro:
-                    # while inMacro and not areaFound:
+                        # logger.debug(line)
                         if 'SIZE' in line:
                             macroWidth = float(line.split()[1])
                             # print macroWidth
@@ -1945,7 +1946,7 @@ def extractStdCells(tech):
                             # macros[macroName] = [macroWidth, macroHeight]
                             macros[macroName] = macro
                             areaFound = True
-                        elif 'PIN' in line:
+                        elif 'PIN ' in line:
                             pin = GatePin(line.split()[1])
                             inPin = True
                         elif inPin and "END {}".format(pin.name) in line:
@@ -1970,7 +1971,7 @@ def extractStdCells(tech):
                                 port = Port(x=float(line.split()[1]), y=float(line.split()[2]), width=float(line.split()[3]), height=float(line.split()[4]))
                             pin.addPort(port)
 
-                        elif str("END " + macroName) in line:
+                        elif "END" in line and macroName in line:
                             inMacro = False
 
                         # if inMacro and not areaFound:
@@ -2004,14 +2005,14 @@ def extractMemoryMacros(hrows, frows):
     with open(bbfile, 'r') as f:
         lines = f.read().splitlines()
 
-    for i in xrange(0, hrows):
+    for i in range(0, hrows):
         del lines[0]
 
-    for i in xrange(0, frows):
+    for i in range(0, frows):
         del lines[-1]
 
     # Remove the spaces between the elements on each line
-    for i in xrange(0, len(lines)):
+    for i in range(0, len(lines)):
         lines[i] = " ".join(lines[i].split())
 
     i = 0
