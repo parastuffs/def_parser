@@ -37,6 +37,7 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import bst
+import statistics
 from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
@@ -232,41 +233,41 @@ class Design:
         logger.info("Average gate width: {}".format(self.agw))
 
         # Gates dispersion
-        logger.info("Compute average gate dispersion")
-        self.GatesDispersion()
-        dispersions = list()
-        nMax = 5 # Number of max values we want to check
-        maxdisp = [0] * nMax
-        maxdispnet = [None] * nMax
-        for k, net in self.nets.items():
-            if len(net.gates) > 2:
-                dispersions.append(net.dispersion)
-                if net.dispersion > min(maxdisp):
-                    maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
-                    maxdispnet[maxdisp.index(min(maxdisp))] = net
-        logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
-        for i in range(len(maxdisp)):
-            # logger.info("Max dispersion net gates info, {}:".format(i))
-            dispx = list()
-            dispy = list()
-            for k, gate in maxdispnet[i].gates.items():
-                # logger.info("x: {}, y: {}".format(gate.x, gate.y))
-                dispx.append(gate.x)
-                dispy.append(gate.y)
-            # Find the max and tell me about its topology
-            plt.plot(dispx, dispy, 'o')
-            plt.axis([0, self.width, 0, self.height])
-            plt.figure()
-        plt.yscale("log")
-        plt.boxplot(dispersions)
-        # plt.show()
+        # logger.info("Compute average gate dispersion")
+        # self.GatesDispersion()
+        # dispersions = list()
+        # nMax = 5 # Number of max values we want to check
+        # maxdisp = [0] * nMax
+        # maxdispnet = [None] * nMax
+        # for k, net in self.nets.items():
+        #     if len(net.gates) > 2:
+        #         dispersions.append(net.dispersion)
+        #         if net.dispersion > min(maxdisp):
+        #             maxdisp[maxdisp.index(min(maxdisp))] = net.dispersion
+        #             maxdispnet[maxdisp.index(min(maxdisp))] = net
+        # logger.info("Average gate dispersion in nets: {}, min: {}, max: {} (computed for nets with 3 or more gates)".format(np.average(dispersions), min(dispersions), max(dispersions)))
+        # for i in range(len(maxdisp)):
+        #     # logger.info("Max dispersion net gates info, {}:".format(i))
+        #     dispx = list()
+        #     dispy = list()
+        #     for k, gate in maxdispnet[i].gates.items():
+        #         # logger.info("x: {}, y: {}".format(gate.x, gate.y))
+        #         dispx.append(gate.x)
+        #         dispy.append(gate.y)
+        #     # Find the max and tell me about its topology
+        #     plt.plot(dispx, dispy, 'o')
+        #     plt.axis([0, self.width, 0, self.height])
+        #     plt.figure()
+        # plt.yscale("log")
+        # plt.boxplot(dispersions)
+        # # plt.show()
 
         # Manhattan skew
         # TODO
 
         # Inter-gate distance
-        logger.info("Compute Manhattan inter-gate distance between each pair of connected gates...")
-        self.IntergateDistance()
+        # logger.info("Compute Manhattan inter-gate distance between each pair of connected gates...")
+        # self.IntergateDistance()
 
         logger.info("Getting gate size stats...")
         gateSize = list()
@@ -303,6 +304,9 @@ class Design:
             topx = 0
             topy = 0
             if len(net.gates) > 1:
+                if net.wl == 0:
+                    print(net.name)
+                    sys.exit()
                 for gate in net.gates.values():
                     botx = min(botx, gate.x)
                     boty = min(boty, gate.y)
@@ -317,7 +321,9 @@ class Design:
         plt.figure()
         plt.title("Net (WL - HPL)/WL")
         plt.boxplot(diff)
-        plt.show()
+        # plt.show()
+        logger.info("--- BB stats over (WL - HPL)/WL ---")
+        logger.info("Mean: {}, median: {}, stdev: {}, min: {}, max: {}".format(statistics.mean(diff), statistics.median(diff), statistics.stdev(diff), min(diff), max(diff)))
 
 
 
@@ -711,6 +717,13 @@ class Design:
                                     x2 = x1
                                     y2 = y1
                                     # print netDetailsSplit
+                                # Some lines have up to 3 pairs of coordinates
+                                if len(netDetailsSplit) > baseIndex+10 and netDetailsSplit[baseIndex+10] == '(':
+                                    x3 = netDetailsSplit[baseIndex+11]
+                                    y3 = netDetailsSplit[baseIndex+12]
+                                else:
+                                    x3 = x2
+                                    y3 = y2
                                 # TODO What is the third number we sometimes have in the second coordinates bracket?
                                 if x2 == "*":
                                     x2 = int(x1)
@@ -720,9 +733,23 @@ class Design:
                                     y2 = int(y1)
                                 else:
                                     y2 = int(y2)
+                                if x3 == "*":
+                                    x3 = x2
+                                else:
+                                    x3 = int(x3)
+                                if y3 == "*":
+                                    y3 = y2
+                                else:
+                                    y3 = int(y3)
                                 # TODO Ternary expressions?
                                 # TODO WEIGHT? cf net clock
-                                netLength += abs(y2 - y1) + abs(x2 - x1)
+                                netLength += abs(y2 - y1) + abs(x2 - x1) + abs(y3 - y2) + abs(x3 - x2)
+                                # if net.name == "clock_module_0.and_dco_dis5.a":
+                                #     logger.debug("In net clock_module_0.and_dco_dis5.a, netDetailsSplit is: '{}'".format(netDetailsSplit))
+                                #     logger.debug("baseIndex = {}".format(baseIndex))
+                                #     logger.debug("netLength = {}".format(netLength))
+                                #     logger.debug("x1 = {}, y1 = {}, x2 = {}, y2 = {}, x3 = {}, y3 = {}".format(x1, y1, x2, y2, x3, y3))
+                                #     logger.debug("len(netDetailsSplit) = {} and [baseIndex+10] = '{}'".format(len(netDetailsSplit), [baseIndex+10]))
 
 
                             netDetails = f.readline().strip()
