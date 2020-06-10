@@ -297,6 +297,7 @@ class Design:
 
 
         diff = list()
+        worstCase = float("inf")
 
         for net in self.nets.values():
             botx = float("inf")
@@ -314,9 +315,20 @@ class Design:
                     topy = max(topy, gate.y+gate.height)
                 net.bb = [[botx, boty], [topx, topy]]
                 net.computeHPL()
-                diff.append((net.wl - net.hpl)/net.wl)
+                newDiff = (net.wl - net.hpl)/net.wl
+                diff.append(newDiff)
+                if worstCase > newDiff:
+                    worstCase = newDiff
+                    worstNet = net
                 if net.name == "n_43387":
                     logger.debug("BB: {}, HPL: {}, wl: {}".format(net.bb, net.hpl, net.wl))
+        logger.info("### Worst net: '{}'".format(worstNet.name))
+        logger.info("## WL-HPL skew: {}".format(worstCase))
+        logger.info("## Wire length: {}".format(worstNet.wl))
+        logger.info("## Wire HPL: {}".format(worstNet.hpl))
+        logger.info("## Wire Bounding box: {}".format(worstNet.bb))
+        logger.info("## Number of gates: {}".format(len(worstNet.gates)))
+        logger.info("#####################")
 
         plt.figure()
         plt.title("Net (WL - HPL)/WL")
