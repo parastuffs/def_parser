@@ -298,6 +298,7 @@ class Design:
 
         diff = list()
         worstCase = float("inf")
+        outStr = ""
 
         for net in self.nets.values():
             botx = float("inf")
@@ -305,6 +306,7 @@ class Design:
             topx = 0
             topy = 0
             if len(net.gates) > 1:
+                outStr += net.name + " "
                 if net.wl == 0:
                     print(net.name)
                     sys.exit()
@@ -315,6 +317,7 @@ class Design:
                     topy = max(topy, gate.y+gate.height)
                 net.bb = [[botx, boty], [topx, topy]]
                 net.computeHPL()
+                outStr += str(net.hpl) + "\n"
                 newDiff = (net.wl - net.hpl)/net.wl
                 diff.append(newDiff)
                 if worstCase > newDiff:
@@ -336,6 +339,11 @@ class Design:
         # plt.show()
         logger.info("--- BB stats over (WL - HPL)/WL ---")
         logger.info("Mean: {}, median: {}, stdev: {}, min: {}, max: {}".format(statistics.mean(diff), statistics.median(diff), statistics.stdev(diff), min(diff), max(diff)))
+
+        outfile = "hpl.out"
+        logger.info("Exporting HPL to {}".format(outfile))
+        with open(outfile, 'w') as f:
+            f.write(outStr)
 
 
 
