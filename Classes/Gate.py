@@ -11,6 +11,7 @@ class Gate:
         self.cohesion = 0 # average distance between the gate and all other gates in the cluster
         self.separation = 0 # average distance btween the gate and all other gates in the nearest cluster
         self.silouhette = 0 # (cohesion - separation)/max(cohesion, separation)
+        self.layer = 0 # 3D layer
 
     def setX(self, x):
         self.x = x
