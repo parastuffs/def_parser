@@ -8,8 +8,9 @@ class Net:
         # Gates dispersion inside of the net.
         # A value of '0' means there is eitheir no gate or only one gate in the net.
         self.dispersion = 0
-        self.bb = [[0,0],[0,0]] # Net bounding box, [[x_top, y_top], [x_bottom, y_bottom]]
+        self.bb = [[0,0],[0,0]] # Net bounding box, [[x_top, y_top], [x_bottom, y_bottom]] in um
         self.hpl = 0 # Hlaf-perimeter length of the bounding box
+        self.hpl3d = 0 # HPL after 3D partitioning
 
     def addGate(self, gate):
         """
