@@ -137,6 +137,7 @@ def NetHPL(file, nets):
         line = line.strip()
         lineEl = line.split()
         nets[lineEl[0]].hpl = float(lineEl[1])
+        nets[lineEl[0]].bb = [ [float(lineEl[2]), float(lineEl[3])], [float(lineEl[4]), float(lineEl[5])] ]
 
 def gateLayer(file, gates):
     """
@@ -164,7 +165,7 @@ def gateLayer(file, gates):
         lineEl = line.split()
         gates[lineEl[0]].layer = int(lineEl[1])
 
-def Approx_3D_HPL(gates, nets):
+def Approx_3D_HPL(gates, nets, width):
     """
     Approximate the HPL for all nets, after partitioning.
 
@@ -174,7 +175,28 @@ def Approx_3D_HPL(gates, nets):
         {Gate.name : Gate}
     nets : dict
         {Net.name : Net}
+    width : int
+        Width of the design in the same units as the gates coordinates.
     """
+    print("coucou")
+    gatesPosition = {} # {position : Gate.name}
+
+    for gate in gates.values():
+        gatesPosition[gate.x + (gate.y * width)] = gate.name
+        # print(gate.x, gate.y)
+    gatesPositionsSorted = sorted(gatesPosition.keys())
+    # print(gatesPositionsSorted)
+
+    UNITS_DISTANCE_MICRONS = 10000
+
+    for net in nets.values():
+        print(net.bb)
+        for y in range(int(net.bb[0][1]*UNITS_DISTANCE_MICRONS), int(net.bb[1][1]*UNITS_DISTANCE_MICRONS)):
+            for x in range(int(net.bb[0][1]*UNITS_DISTANCE_MICRONS), int(net.bb[1][0]*UNITS_DISTANCE_MICRONS)):
+                coordinate = x + (width*y)
+                # print(coordinate)
+                if coordinate/UNITS_DISTANCE_MICRONS in gatesPosition:
+                    logger.debug("Net {}, found gate {} in BB".format(net.name, gatesPosition[coordinate/UNITS_DISTANCE_MICRONS]))
 
 
 if __name__ == "__main__":
@@ -195,6 +217,8 @@ if __name__ == "__main__":
     fh.setFormatter(logging.Formatter('%(asctime)s: %(message)s'))
     # Add the handler to the logger
     logger.addHandler(fh)
+
+    designWidths = {"ldpc":575820}
 
     if rootDir == "":
         logger.warning("No directory specified")
@@ -242,7 +266,7 @@ if __name__ == "__main__":
                             if os.path.isfile(pf):
                                 logger.info("Retrieving gate layer from {}".format(pf))
                                 gateLayer(pf, gates)
-                                Approx_3D_HPL(gates, nets)
+                                Approx_3D_HPL(gates, nets, designWidths[design])
             # logger.info("Extracting clusters")
             # clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
             # logger.info("Associate clusters and gates")
