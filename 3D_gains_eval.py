@@ -164,6 +164,18 @@ def gateLayer(file, gates):
         lineEl = line.split()
         gates[lineEl[0]].layer = int(lineEl[1])
 
+def Approx_3D_HPL(gates, nets):
+    """
+    Approximate the HPL for all nets, after partitioning.
+
+    Parameters
+    ----------
+    gates : dict
+        {Gate.name : Gate}
+    nets : dict
+        {Net.name : Net}
+    """
+
 
 if __name__ == "__main__":
 
@@ -230,6 +242,7 @@ if __name__ == "__main__":
                             if os.path.isfile(pf):
                                 logger.info("Retrieving gate layer from {}".format(pf))
                                 gateLayer(pf, gates)
+                                Approx_3D_HPL(gates, nets)
             # logger.info("Extracting clusters")
             # clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
             # logger.info("Associate clusters and gates")
