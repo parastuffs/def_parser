@@ -14,6 +14,7 @@ import sys
 import logging, logging.config
 import datetime
 import math
+import statistics
 import numpy as np
 from Classes.Cluster import *
 from Classes.Gate import *
@@ -31,6 +32,9 @@ NET_F = "WLnets.out"
 NET_GATE_F = "CellCoord.out"
 NET_HPL_F = "hpl.out"
 PART_DIRECTIVES_EXT = ".part" # Partitioning directives file extension
+GATE_SIZES_F = "CellSizes.out"
+
+NET_3D_OVERHEAD = 0
 
 def extractGates(file):
     """
@@ -57,6 +61,31 @@ def extractGates(file):
         gates[gateName].setX(float(line.split(',')[2]))
         gates[gateName].setY(float(line.split(',')[3]))
     return gates
+
+def extractGatesSize(file, gates):
+    """
+    The input file is expected to be formated as follows:
+        <gate name>, <gate width [float]>, <gate height [float]>
+    First line is a header.
+
+    Parameters
+    ----------
+    file : str
+        Path to input file
+    gates : dict
+        Dictionary {Gate.name : Gate}
+
+    Return
+    ------
+    N/A
+    """
+    with open(file, 'r') as f:
+        lines = f.read().splitlines()
+    for line in lines[1:]:
+        line = line.strip()
+        gateName = line.split(' ')[0]
+        gates[gateName].setWidth(float(line.split(' ')[1]))
+        gates[gateName].setHeight(float(line.split(' ')[2]))
 
 def extractNets(file):
     """
@@ -165,6 +194,29 @@ def gateLayer(file, gates):
         lineEl = line.split()
         gates[lineEl[0]].layer = int(lineEl[1])
 
+def netLayer(nets):
+    """
+    Determine if the net is 3D or not.
+
+    Parameters
+    ----------
+    nets : dict
+        {Net.name : Net}
+    
+    Return
+    ------
+    N/A
+    """
+    for net in nets.values():
+        layer = -1
+        for gate in net.gates.values():
+            if layer == -1:
+                layer = gate.layer
+            elif layer != gate.layer:
+                net.is3d = 1
+                break
+        net.alyer = layer
+
 def Approx_3D_HPL(gates, nets, width):
     """
     Approximate the HPL for all nets, after partitioning.
@@ -178,8 +230,9 @@ def Approx_3D_HPL(gates, nets, width):
     width : int
         Width of the design in the same units as the gates coordinates.
     """
-    print("coucou")
     gatesPosition = {} # {position : Gate.name}
+
+    gains = [] # list of hpl2D - hpl3D
 
     for gate in gates.values():
         gatesPosition[gate.x + (gate.y * width)] = gate.name
@@ -187,16 +240,71 @@ def Approx_3D_HPL(gates, nets, width):
     gatesPositionsSorted = sorted(gatesPosition.keys())
     # print(gatesPositionsSorted)
 
-    UNITS_DISTANCE_MICRONS = 10000
+    UNITS_DISTANCE_MICRONS = 1000
 
+    gatesNested = {} # Dictionary of dictionaries: {Gate.x : {Gate.y : Gate.name}}
+    for gate in gates.values():
+        if gate.x not in gatesNested.keys():
+            gatesNested[gate.x] = {gate.y : gate.name}
+        else:
+            gatesNested[gate.x][gate.y] = gate.name
+    # print(gatesNested)
+
+    i = 0
     for net in nets.values():
-        print(net.bb)
-        for y in range(int(net.bb[0][1]*UNITS_DISTANCE_MICRONS), int(net.bb[1][1]*UNITS_DISTANCE_MICRONS)):
-            for x in range(int(net.bb[0][1]*UNITS_DISTANCE_MICRONS), int(net.bb[1][0]*UNITS_DISTANCE_MICRONS)):
-                coordinate = x + (width*y)
-                # print(coordinate)
-                if coordinate/UNITS_DISTANCE_MICRONS in gatesPosition:
-                    logger.debug("Net {}, found gate {} in BB".format(net.name, gatesPosition[coordinate/UNITS_DISTANCE_MICRONS]))
+        i += 1
+        if net.hpl > 0:
+            # net.hpl3d = net.hpl
+            # hpl3d0 = net.hpl3d # HPL for the layer 0 of a 3D net
+            # hpl3d1 = net.hpl3d # HPL for the layer 1 of a 3D net
+
+            # Substracting the sqrt(gate.width * gate.height) from the hpl would result in negative values for hpl3d. It seems more accurate to remove the area of the cells from the area of the BB.
+            bbArea = (net.bb[1][0] - net.bb[0][0]) * (net.bb[1][1] - net.bb[0][1])
+            bbArea3d = bbArea
+            bbArea3d0 = bbArea
+            bbArea3d1 = bbArea
+
+            for gateX in gatesNested.keys():
+                if gateX < net.bb[1][0] and gateX > net.bb[0][0]:
+                    for gateY in gatesNested[gateX].keys():
+                        if gateY < net.bb[1][1] and gateY > net.bb[0][1]:
+
+                            # 2D net
+                            if net.is3d == 0:
+                                # gate has moved to the other layer
+                                if gate.layer != net.layer:
+                                    # net.hpl3d -= math.sqrt(gate.width * gate.height)
+                                    bbArea3d -= gate.width * gate.height
+
+                            # 3D net
+                            elif net.is3d == 1:
+                                # Layer 0
+                                if gate.layer == 1:
+                                    # hpl3d0 -= math.sqrt(gate.width * gate.height)
+                                    bbArea3d0 -= gate.width * gate.height
+                                elif gate.layer == 0:
+                                    # hpl3d1 -= math.sqrt(gate.width * gate.height)
+                                    bbArea3d1 -= gate.width * gate.height
+                            else:
+                                logger.error("Unexpected value of net.is3d: '{}'".format(net.is3d))
+                                sys.exit()
+            # End of net, add overhead if appropriate
+            if net.is3d:
+                # net.hpl3d = hpl3d0 + hpl3d1 + NET_3D_OVERHEAD
+                net.hpl3d = math.sqrt(bbArea3d0) + math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
+            else:
+                net.hpl3d = math.sqrt(bbArea3d)
+            gains.append((net.hpl - net.hpl3d)/net.hpl)
+            if net.hpl3d < 0:
+                logger.warning("3D HPL for {} is {}, 2D was {}".format(net.name, net.hpl3d, net.hpl))
+
+                        # logger.debug("Net {}, found gate {} in BB {}, coordinates: ({}, {})".format(net.name, gate.name, net.bb, gate.x, gate.y))
+    logger.debug("Done.")
+    logger.info("Average gain over HPL: {}".format(statistics.mean(gains)))
+    plt.title("(HPL 2D - HPL 3D) / HPL 2D")
+    plt.boxplot(gains)
+    plt.savefig('3DHPL_gains.png')
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -243,10 +351,14 @@ if __name__ == "__main__":
 
     logger.info("Extracting gates")
     gates = extractGates(os.path.join(rootDir, GATE_F))
+    logger.info("Extracting gate sizes")
+    extractGatesSize(os.path.join(rootDir, GATE_SIZES_F), gates)
     logger.info("Extracting nets")
     nets = extractNets(os.path.join(rootDir, NET_F))
     logger.info("Associate gates and nets")
     gateNetAssociation(os.path.join(rootDir, NET_GATE_F), nets, gates)
+    logger.info("Determining if nets are 3D.")
+    netLayer(nets)
     logger.info("Retrieving HPL info from {}".format(NET_HPL_F))
     NetHPL(os.path.join(rootDir, NET_HPL_F), nets)
 
@@ -266,6 +378,7 @@ if __name__ == "__main__":
                             if os.path.isfile(pf):
                                 logger.info("Retrieving gate layer from {}".format(pf))
                                 gateLayer(pf, gates)
+                                logger.info("Approximating 3D HPL")
                                 Approx_3D_HPL(gates, nets, designWidths[design])
             # logger.info("Extracting clusters")
             # clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
