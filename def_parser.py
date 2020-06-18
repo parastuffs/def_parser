@@ -282,6 +282,15 @@ class Design:
         self.ComputeBoundingBox()
 
 
+########   ########   
+##     ##  ##     ##  
+##     ##  ##     ##  
+########   ########   
+##     ##  ##     ##  
+##     ##  ##     ##  
+########   ########   
+
+
     def ComputeBoundingBox(self):
         '''
         Compute the bounding box (BB) for each net in the design.
@@ -317,7 +326,8 @@ class Design:
                     topy = max(topy, gate.y+gate.height)
                 net.bb = [[botx, boty], [topx, topy]]
                 net.computeHPL()
-                outStr += str(net.hpl) + "\n"
+                outStr += str(net.hpl)
+                outStr += " {} {} {} {}\n".format(botx, boty, topx, topy)
                 newDiff = (net.wl - net.hpl)/net.wl
                 diff.append(newDiff)
                 if worstCase > newDiff:
@@ -461,6 +471,7 @@ class Design:
         inComponents = False
         endOfComponents = False
         unknownCellsCounts = 0
+        cellSizeStr = "cell width height\n"
 
         with open(deffile, 'r') as f:
             for line in f:
@@ -492,6 +503,7 @@ class Design:
                             except:
                                 logger.error("Could not find the macro '{}' while parsing the line\n{}\nThis macro might be missing from the LEF file. \nExiting.".format(gate.getStdCell(), line))
                                 sys.exit()
+                        cellSizeStr += "{} {} {}\n".format(gate.name, gate.width, gate.height)
                         """
                         A cell is always defined on a single line.
                         On this line, its coordinates are written as
@@ -541,6 +553,10 @@ class Design:
         logger.debug("Total area of the gates: {} ({}% of total area)".format(self.gatesArea, 100*self.gatesArea/self.area))
         logger.debug("Unknown cell encountered: {}".format(unknownCellsCounts))
         # exit()
+        cellSizeStrfname = "CellSizes.out"
+        logger.info("Exporting cells dimensions to {}".format(cellSizeStrfname))
+        with open(cellSizeStrfname, 'w') as f:
+            f.write(cellSizeStr)
 
 
     #########  ##    ##   ##########  ########   ########   ##      ##   #######   
