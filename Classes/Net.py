@@ -11,6 +11,8 @@ class Net:
         self.bb = [[0,0],[0,0]] # Net bounding box, [[x_top, y_top], [x_bottom, y_bottom]] in um
         self.hpl = 0 # Hlaf-perimeter length of the bounding box
         self.hpl3d = 0 # HPL after 3D partitioning
+        self.is3d = 0 # 1 if 3D net
+        self.layer = 0 # 0 or 1, irrelevant if is3d == 1.
 
     def addGate(self, gate):
         """
