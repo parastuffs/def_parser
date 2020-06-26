@@ -33,6 +33,7 @@ NET_GATE_F = "CellCoord.out"
 NET_HPL_F = "hpl.out"
 PART_DIRECTIVES_EXT = ".part" # Partitioning directives file extension
 GATE_SIZES_F = "CellSizes.out"
+PART_BASENAME = "" # e.g metis_01_NoWires_area"
 
 NET_3D_OVERHEAD = 0
 
@@ -145,9 +146,9 @@ def NetHPL(file, nets):
     """
     Extract HPL info from file.
     File should be formated as follows:
-        <net name [str]> <net HPL [float]>
+        <net name [str]> <net HPL [float]> <Bounding box x1> <y1> <x2> <y2>
     e.g.
-        load 62.928000000000004
+        load 62.928000000000004 0.882 3.68 17.346 50.144
 
     Parameters
     ----------
@@ -187,12 +188,15 @@ def gateLayer(file, gates):
     ------
     N/A
     """
+    global PART_BASENAME
+    PART_BASENAME = os.path.basename(file).split(".")[0]
     with open(file,'r') as f:
         lines = f.read().splitlines()
     for line in lines:
         line = line.strip()
         lineEl = line.split()
         gates[lineEl[0]].layer = int(lineEl[1])
+        # logger.debug("Layer: {}".format(int(lineEl[1])))
 
 def netLayer(nets):
     """
@@ -208,12 +212,15 @@ def netLayer(nets):
     N/A
     """
     for net in nets.values():
+        # logger.debug("Net: {}".format(net.name))
         layer = -1
         for gate in net.gates.values():
+            # logger.debug("Layer: {}".format(layer))
             if layer == -1:
                 layer = gate.layer
             elif layer != gate.layer:
                 net.is3d = 1
+                # logger.debug("Net detected as 3D: {}".format(net.name))
                 break
         net.alyer = layer
 
@@ -238,6 +245,8 @@ def Approx_3D_HPL(gates, nets):
         else:
             gatesNested[gate.x][gate.y] = gate.name
     # print(gatesNested)
+    hplStr = "net, HPL2D, HPL3D, WL2D\n"
+    hplStrFilename = "{}_NetHPL3D.out".format(PART_BASENAME)
 
     i = 0
     for net in nets.values():
@@ -279,20 +288,26 @@ def Approx_3D_HPL(gates, nets):
                                 sys.exit()
             # End of net, add overhead if appropriate
             if net.is3d:
+                # logger.debug("Net is 3D: {}".format(net.name))
                 # net.hpl3d = hpl3d0 + hpl3d1 + NET_3D_OVERHEAD
                 net.hpl3d = math.sqrt(bbArea3d0) + math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
             else:
+                # logger.debug("Net is NOT 3D: {}".format(net.name))
                 net.hpl3d = math.sqrt(bbArea3d)
             gains.append((net.hpl - net.hpl3d)/net.hpl)
             if net.hpl3d < 0:
                 logger.warning("3D HPL for {} is {}, 2D was {}".format(net.name, net.hpl3d, net.hpl))
 
                         # logger.debug("Net {}, found gate {} in BB {}, coordinates: ({}, {})".format(net.name, gate.name, net.bb, gate.x, gate.y))
+            hplStr += "{}, {}, {}, {}\n".format(net.name, net.hpl, net.hpl3d, net.wl)
     logger.debug("Done.")
     logger.info("Average gain over HPL: {}".format(statistics.mean(gains)))
+    logger.info("Exporting HPL to {}".format(hplStrFilename))
+    with open(hplStrFilename, 'w') as f:
+        f.write(hplStr)
     plt.title("(HPL 2D - HPL 3D) / HPL 2D")
     plt.boxplot(gains)
-    plt.savefig('3DHPL_gains.png')
+    plt.savefig('{}_3DHPL_gains.png'.format(PART_BASENAME))
     plt.show()
 
 
@@ -344,8 +359,6 @@ if __name__ == "__main__":
     nets = extractNets(os.path.join(rootDir, NET_F))
     logger.info("Associate gates and nets")
     gateNetAssociation(os.path.join(rootDir, NET_GATE_F), nets, gates)
-    logger.info("Determining if nets are 3D.")
-    netLayer(nets)
     logger.info("Retrieving HPL info from {}".format(NET_HPL_F))
     NetHPL(os.path.join(rootDir, NET_HPL_F), nets)
 
@@ -365,6 +378,8 @@ if __name__ == "__main__":
                             if os.path.isfile(pf):
                                 logger.info("Retrieving gate layer from {}".format(pf))
                                 gateLayer(pf, gates)
+                                logger.info("Determining if nets are 3D.")
+                                netLayer(nets)
                                 logger.info("Approximating 3D HPL")
                                 Approx_3D_HPL(gates, nets)
             # logger.info("Extracting clusters")
