@@ -217,7 +217,7 @@ def netLayer(nets):
                 break
         net.alyer = layer
 
-def Approx_3D_HPL(gates, nets, width):
+def Approx_3D_HPL(gates, nets):
     """
     Approximate the HPL for all nets, after partitioning.
 
@@ -227,20 +227,9 @@ def Approx_3D_HPL(gates, nets, width):
         {Gate.name : Gate}
     nets : dict
         {Net.name : Net}
-    width : int
-        Width of the design in the same units as the gates coordinates.
     """
-    gatesPosition = {} # {position : Gate.name}
 
     gains = [] # list of hpl2D - hpl3D
-
-    for gate in gates.values():
-        gatesPosition[gate.x + (gate.y * width)] = gate.name
-        # print(gate.x, gate.y)
-    gatesPositionsSorted = sorted(gatesPosition.keys())
-    # print(gatesPositionsSorted)
-
-    UNITS_DISTANCE_MICRONS = 1000
 
     gatesNested = {} # Dictionary of dictionaries: {Gate.x : {Gate.y : Gate.name}}
     for gate in gates.values():
@@ -326,8 +315,6 @@ if __name__ == "__main__":
     # Add the handler to the logger
     logger.addHandler(fh)
 
-    designWidths = {"ldpc":575820}
-
     if rootDir == "":
         logger.warning("No directory specified")
 
@@ -379,7 +366,7 @@ if __name__ == "__main__":
                                 logger.info("Retrieving gate layer from {}".format(pf))
                                 gateLayer(pf, gates)
                                 logger.info("Approximating 3D HPL")
-                                Approx_3D_HPL(gates, nets, designWidths[design])
+                                Approx_3D_HPL(gates, nets)
             # logger.info("Extracting clusters")
             # clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
             # logger.info("Associate clusters and gates")
