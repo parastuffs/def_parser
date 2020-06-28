@@ -286,6 +286,7 @@ def Approx_3D_HPL(gates, nets):
 
                             gate = gates[gatesNested[gateX][gateY]]
 
+                            # Gate not in the net, remove it from the bb
                             if gate not in net.gates.values():
 
                                 # if DEBUG:
@@ -295,10 +296,10 @@ def Approx_3D_HPL(gates, nets):
                                 height = gate.height
 
                                 if ( (gate.x + gate.width) > net.bb[1][0]):
-                                    logger.warning("Gate {} is too wide, truncating...".format(gate.name))
+                                    # logger.warning("Gate {} is too wide, truncating...".format(gate.name))
                                     width = net.bb[1][0] - gate.x
                                 if ( (gate.y + gate.height) > net.bb[1][1]):
-                                    logger.warning("Gate '{}' is too tall, truncating...".format(gate.name))
+                                    # logger.warning("Gate '{}' is too tall, truncating...".format(gate.name))
                                     height = net.bb[1][1] - gate.y
 
 
@@ -329,7 +330,15 @@ def Approx_3D_HPL(gates, nets):
                                     sys.exit()
                             else:
                                 # logger.debug("Skipping {} for net {}".format(gate.name, net.name))
-                                continue
+                                # Gate is in the net. Remove it from the BB3D on the opposite layer.
+                                # There shouldn't be any oob error has the BB is computed on their dimensions.
+                                if net.is3d == 1:
+                                    if gate.layer == 1:
+                                        bbArea3d0 -= gate.width * gate.height
+                                    elif gate.layer == 0:
+                                        bbArea3d1 -= gate.width * gate.height
+                                    else:
+                                        logger.error("Unexpected gate layer value {} for {}".format(gate.layer, gate.name))
             # End of net, add overhead if appropriate
             if net.is3d:
                 # logger.debug("Net is 3D: {}".format(net.name))
@@ -364,7 +373,7 @@ def Approx_3D_HPL(gates, nets):
     plt.boxplot(gains)
     plt.savefig('{}_3DHPL_gains.png'.format(PART_BASENAME))
     # plt.show()
-    # sys.exit()
+    # sys.exit()    
     return statistics.mean(gains)
 
 
