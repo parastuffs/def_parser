@@ -1,10 +1,11 @@
 """
 Usage:
-    cluster_analysis.py   [-d <dir>]
+    cluster_analysis.py   [-d <dir>] [-q]
     cluster_analysis.py (--help|-h)
 
 Options:
     -d <dir>        Cluster directory
+    -q              Quiet mode (no graphical output)
     -h --help       Print this help
 """
 
@@ -36,6 +37,8 @@ GATE_SIZES_F = "CellSizes.out"
 PART_BASENAME = "" # e.g metis_01_NoWires_area"
 
 NET_3D_OVERHEAD = 0
+
+FORBIDEN_DIRS = ["ldpc_random_0"]
 
 def extractGates(file):
     """
@@ -214,6 +217,7 @@ def netLayer(nets):
     for net in nets.values():
         # logger.debug("Net: {}".format(net.name))
         layer = -1
+        net.is3d = 0 # reset
         for gate in net.gates.values():
             # logger.debug("Layer: {}".format(layer))
             if layer == -1:
@@ -222,7 +226,7 @@ def netLayer(nets):
                 net.is3d = 1
                 # logger.debug("Net detected as 3D: {}".format(net.name))
                 break
-        net.alyer = layer
+        net.layer = layer
 
 def Approx_3D_HPL(gates, nets):
     """
@@ -245,7 +249,7 @@ def Approx_3D_HPL(gates, nets):
         else:
             gatesNested[gate.x][gate.y] = gate.name
     # print(gatesNested)
-    hplStr = "net, HPL2D, HPL3D, WL2D\n"
+    hplStr = "net, HPL2D, HPL3D, Gain (HPL2D - HPL3D)/HPL2D, WL2D, is 3D\n"
     hplStrFilename = "{}_NetHPL3D.out".format(PART_BASENAME)
 
     i = 0
@@ -299,16 +303,17 @@ def Approx_3D_HPL(gates, nets):
                 logger.warning("3D HPL for {} is {}, 2D was {}".format(net.name, net.hpl3d, net.hpl))
 
                         # logger.debug("Net {}, found gate {} in BB {}, coordinates: ({}, {})".format(net.name, gate.name, net.bb, gate.x, gate.y))
-            hplStr += "{}, {}, {}, {}\n".format(net.name, net.hpl, net.hpl3d, net.wl)
+            hplStr += "{}, {}, {}, {}, {}, {}\n".format(net.name, net.hpl, net.hpl3d, gains[-1], net.wl, str(net.is3d))
     logger.debug("Done.")
     logger.info("Average gain over HPL: {}".format(statistics.mean(gains)))
     logger.info("Exporting HPL to {}".format(hplStrFilename))
     with open(hplStrFilename, 'w') as f:
         f.write(hplStr)
+    plt.figure()
     plt.title("(HPL 2D - HPL 3D) / HPL 2D")
     plt.boxplot(gains)
     plt.savefig('{}_3DHPL_gains.png'.format(PART_BASENAME))
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -364,7 +369,7 @@ if __name__ == "__main__":
 
     for d in os.listdir(rootDir):
         subdir = os.path.join(rootDir, d)
-        if os.path.isdir(subdir):
+        if os.path.isdir(subdir) and d not in FORBIDEN_DIRS:
             os.chdir(subdir)
             logger.info("Working in folder {}".format(d))
             for sd in os.listdir(subdir):
