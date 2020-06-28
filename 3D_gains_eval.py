@@ -238,6 +238,11 @@ def Approx_3D_HPL(gates, nets):
         {Gate.name : Gate}
     nets : dict
         {Net.name : Net}
+
+    Return
+    ------
+    float
+        Result of (HPL2D - HPL3D)/HPL2D
     """
 
     gains = [] # list of hpl2D - hpl3D
@@ -266,37 +271,82 @@ def Approx_3D_HPL(gates, nets):
             bbArea3d0 = bbArea
             bbArea3d1 = bbArea
 
+            DEBUG = False
+
+            # if net.name == "ALUMemExeUnit/fdivsqrt_downvert_d2s_RoundRawFNToRecFN_n_4632":
+            #     DEBUG = True
+
+            # if DEBUG:
+            #     logger.debug("{}, BB area: {}, Gate cumul area: {}".format(net.name, (net.bb[1][1]-net.bb[0][1]) * (net.bb[1][0]-net.bb[0][0]), sum([x.width*x.height for x in net.gates.values()])))
+
             for gateX in gatesNested.keys():
-                if gateX < net.bb[1][0] and gateX > net.bb[0][0]:
+                if gateX < net.bb[1][0] and gateX >= net.bb[0][0]:
                     for gateY in gatesNested[gateX].keys():
-                        if gateY < net.bb[1][1] and gateY > net.bb[0][1]:
+                        if gateY < net.bb[1][1] and gateY >= net.bb[0][1]:
 
-                            # 2D net
-                            if net.is3d == 0:
-                                # gate has moved to the other layer
-                                if gate.layer != net.layer:
-                                    # net.hpl3d -= math.sqrt(gate.width * gate.height)
-                                    bbArea3d -= gate.width * gate.height
+                            gate = gates[gatesNested[gateX][gateY]]
 
-                            # 3D net
-                            elif net.is3d == 1:
-                                # Layer 0
-                                if gate.layer == 1:
-                                    # hpl3d0 -= math.sqrt(gate.width * gate.height)
-                                    bbArea3d0 -= gate.width * gate.height
-                                elif gate.layer == 0:
-                                    # hpl3d1 -= math.sqrt(gate.width * gate.height)
-                                    bbArea3d1 -= gate.width * gate.height
+                            if gate not in net.gates.values():
+
+                                # if DEBUG:
+                                #     logger.debug("Considering gate {} {}".format(gate.name, gate))
+
+                                width = gate.width
+                                height = gate.height
+
+                                if ( (gate.x + gate.width) > net.bb[1][0]):
+                                    logger.warning("Gate {} is too wide, truncating...".format(gate.name))
+                                    width = net.bb[1][0] - gate.x
+                                if ( (gate.y + gate.height) > net.bb[1][1]):
+                                    logger.warning("Gate '{}' is too tall, truncating...".format(gate.name))
+                                    height = net.bb[1][1] - gate.y
+
+
+                                # 2D net
+                                if net.is3d == 0:
+                                    # gate has moved to the other layer
+                                    if gate.layer != net.layer:
+                                        # net.hpl3d -= math.sqrt(gate.width * gate.height)
+                                        bbArea3d -= width * height
+
+                                # 3D net
+                                elif net.is3d == 1:
+                                    # Layer 0
+                                    if gate.layer == 1:
+                                        # hpl3d0 -= math.sqrt(gate.width * gate.height)
+                                        bbArea3d0 -= width * height
+                                        # if bbArea3d0 < 0:
+                                        #     logger.error("3D BB area on layer 0 negative ({}) for net '{}'".format(bbArea3d0, net.name))
+                                            # sys.exit()
+                                    elif gate.layer == 0:
+                                        # hpl3d1 -= math.sqrt(gate.width * gate.height)
+                                        bbArea3d1 -= width * height
+                                        # if bbArea3d1 < 0:
+                                        #     logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
+                                            # sys.exit()
+                                else:
+                                    logger.error("Unexpected value of net.is3d: '{}'".format(net.is3d))
+                                    sys.exit()
                             else:
-                                logger.error("Unexpected value of net.is3d: '{}'".format(net.is3d))
-                                sys.exit()
+                                # logger.debug("Skipping {} for net {}".format(gate.name, net.name))
+                                continue
             # End of net, add overhead if appropriate
             if net.is3d:
                 # logger.debug("Net is 3D: {}".format(net.name))
                 # net.hpl3d = hpl3d0 + hpl3d1 + NET_3D_OVERHEAD
+                if bbArea3d0 < 0:
+                    logger.error("3D BB area on layer 0 negative ({}) for net '{}'".format(bbArea3d0, net.name))
+                    bbArea3d0 = 0
+
+                if bbArea3d1 < 0:
+                    logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
+                    bbArea3d1 = 0
                 net.hpl3d = math.sqrt(bbArea3d0) + math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
             else:
                 # logger.debug("Net is NOT 3D: {}".format(net.name))
+                if bbArea3d < 0:
+                    logger.error("2D negative ({}) for net '{}'".format(bbArea3d, net.name))
+                    bbArea3d = 0
                 net.hpl3d = math.sqrt(bbArea3d)
             gains.append((net.hpl - net.hpl3d)/net.hpl)
             if net.hpl3d < 0:
@@ -314,6 +364,8 @@ def Approx_3D_HPL(gates, nets):
     plt.boxplot(gains)
     plt.savefig('{}_3DHPL_gains.png'.format(PART_BASENAME))
     # plt.show()
+    # sys.exit()
+    return statistics.mean(gains)
 
 
 if __name__ == "__main__":
@@ -367,6 +419,8 @@ if __name__ == "__main__":
     logger.info("Retrieving HPL info from {}".format(NET_HPL_F))
     NetHPL(os.path.join(rootDir, NET_HPL_F), nets)
 
+    meanGains = {} # {clust_folder/part_folder/part_file : average HPL gain}
+
     for d in os.listdir(rootDir):
         subdir = os.path.join(rootDir, d)
         if os.path.isdir(subdir) and d not in FORBIDEN_DIRS:
@@ -386,10 +440,11 @@ if __name__ == "__main__":
                                 logger.info("Determining if nets are 3D.")
                                 netLayer(nets)
                                 logger.info("Approximating 3D HPL")
-                                Approx_3D_HPL(gates, nets)
+                                meanGains["{}/{}/{}".format(d, sd, pf)] = Approx_3D_HPL(gates, nets)
             # logger.info("Extracting clusters")
             # clusters = extractClusters(os.path.join(subdir, CLUSTER_F))
             # logger.info("Associate clusters and gates")
             # clusterGateAssociation(os.path.join(subdir, CLUSTER_GATE_F), clusters, gates)
             # clusterConnectivity(clusters, nets)
             # silouhette(clusters, gates)
+    logger.info("Average gains: {}".format(meanGains))
