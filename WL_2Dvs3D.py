@@ -42,33 +42,71 @@ def Evaluate3Dwl(wlFile, netCutFile):
     ------
     N/A
     '''
-    nets = dict() # {Net name : net wl}
-    nets3D = dict() # {Net name : net wl}
+    netsWL = dict() # {Net name : net wl}
+    nets3DWL = dict() # {Net name : net wl}
+    netsPins = dict() # {Net name : net pins}
+    nets3DPins = dict() # {Net name : net pins}
+    pinValues = set()
     with open(wlFile, 'r') as f:
         lines = f.readlines()
     for line in lines[1:]:
-        nets[line.split(' ')[0]] = float(line.split(' ')[2])
+        netsWL[line.split(' ')[0]] = float(line.split(' ')[2])
+        netsPins[line.split(' ')[0]] = int(line.split(' ')[1])
+        pinValues.add(int(line.split(' ')[1]))
 
     with open(netCutFile, 'r') as f:
         lines = f.readlines()
     for line in lines:
         for el in line.split(',')[3:]:
-            nets3D[el.strip()] = nets[el.strip()]
+            nets3DWL[el.strip()] = netsWL[el.strip()]
+            nets3DPins[el.strip()] = netsPins[el.strip()]
 
     points = list()
     tmp = list()
-    for p in nets.values():
+    for p in netsWL.values():
         tmp.append(p)
     points.append(tmp)
 
     tmp = list()
-    for p in nets3D.values():
+    for p in nets3DWL.values():
         tmp.append(p)
     points.append(tmp)
+
+    pinX = list(pinValues)
+    pins2D = {}
+    for p in pinX:
+        pins2D[p] = 0
+    for v in netsPins.values():
+        pins2D[v] += 1
+    pins2DPerc = [i/sum(pins2D.values()) for i in pins2D.values()]
+
+    pins3D = {}
+    for p in pinX:
+        pins3D[p] = 0
+    for v in nets3DPins.values():
+        pins3D[v] += 1
+    pins3DPerc = [i/sum(pins3D.values()) for i in pins3D.values()]
 
     plt.figure()
     plt.title("Wirelength of (left) 2D nets and (right) cut nets")
     plt.boxplot(points)
+
+    plt.figure()
+    plt.subplot(2,2,1)
+    plt.title("Fanout of 2D nets")
+    # plt.yscale("log")
+    plt.bar(pinX, pins2D.values())
+    plt.subplot(2,2,2)
+    plt.title("Fanout of 3D cut nets")
+    # plt.yscale("log")
+    plt.bar(pinX, pins3D.values())
+    plt.subplot(2,2,3)
+    plt.title("Fanout of 2D nets (norm)")
+    plt.bar(pinX, pins2DPerc)
+    plt.subplot(2,2,4)
+    plt.title("Fanout of 3D cut nets (norm)")
+    plt.bar(pinX, pins3DPerc)
+
     plt.show()
 
 
