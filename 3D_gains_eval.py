@@ -350,13 +350,13 @@ def Approx_3D_HPL(gates, nets):
                 if bbArea3d1 < 0:
                     logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
                     bbArea3d1 = 0
-                net.hpl3d = math.sqrt(bbArea3d0) + math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
+                net.hpl3d = 2*math.sqrt(bbArea3d0) + 2*math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
             else:
                 # logger.debug("Net is NOT 3D: {}".format(net.name))
                 if bbArea3d < 0:
                     logger.error("2D negative ({}) for net '{}'".format(bbArea3d, net.name))
                     bbArea3d = 0
-                net.hpl3d = math.sqrt(bbArea3d)
+                net.hpl3d = 2*math.sqrt(bbArea3d)
             gains.append((net.hpl - net.hpl3d)/net.hpl)
             if net.hpl3d < 0:
                 logger.warning("3D HPL for {} is {}, 2D was {}".format(net.name, net.hpl3d, net.hpl))
