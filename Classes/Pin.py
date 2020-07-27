@@ -3,6 +3,7 @@ class Pin:
         self.name = name
         self.x = 0
         self.y = 0
+        self.net = None # Net object
 
     def setX(self, x):
         self.x = x
