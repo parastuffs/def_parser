@@ -1,10 +1,14 @@
 """
 Usage:
-    cluster_analysis.py   [-d <dir>] [-q]
-    cluster_analysis.py (--help|-h)
+    3D_gains_eval.py   [-d <dir>] [-c <folder 1,...,foler n>] [-q]
+    3D_gains_eval.py (--help|-h)
 
 Options:
-    -d <dir>        Cluster directory
+    -d <dir>        Cluster directory, full path
+                    e.g /full/path/date_time_design_method
+    -c <folder 1,...,folder n >
+                    Clustering subfolders
+                    e.g flipr_hierarchical-geometric_2
     -q              Quiet mode (no graphical output)
     -h --help       Print this help
 """
@@ -38,7 +42,7 @@ PART_BASENAME = "" # e.g metis_01_NoWires_area"
 
 NET_3D_OVERHEAD = 0
 
-FORBIDEN_DIRS = ["ldpc_random_0"]
+FORBIDEN_DIRS = ["ldpc_random_0", "old"]
 
 def extractGates(file):
     """
@@ -382,8 +386,11 @@ if __name__ == "__main__":
     args = docopt(__doc__)
     print(args)
     rootDir = ""
+    clusteringGrains = None
     if args["-d"]:
         rootDir = args["-d"].rstrip('/')
+    if args["-c"]:
+        clusteringGrains = list(args["-c"].split(","))
 
     # Load base config from conf file.
     logging.config.fileConfig('log.conf')
@@ -430,16 +437,28 @@ if __name__ == "__main__":
 
     meanGains = {} # {clust_folder/part_folder/part_file : average HPL gain}
 
-    for d in os.listdir(rootDir):
+    subdirToExplore = []
+    if clusteringGrains == None:
+        subdirToExplore = os.listdir(rootDir)
+    else:
+        subdirToExplore = clusteringGrains
+
+    # logger.debug("clusteringGrains: {}".format(clusteringGrains))
+    # logger.debug("subdirToExplore: {}".format(subdirToExplore))
+
+    # Top dir, e.g 2019-02-07_15-12-26_flipr_hierarchical-geometric
+    for d in subdirToExplore:
         subdir = os.path.join(rootDir, d)
         if os.path.isdir(subdir) and d not in FORBIDEN_DIRS:
             os.chdir(subdir)
             logger.info("Working in folder {}".format(d))
+            # Clustering dir, e.g flipr_hierarchical-geometric_2
             for sd in os.listdir(subdir):
                 subsubdir = os.path.join(subdir, sd)
                 if os.path.isdir(subsubdir):
                     os.chdir(subsubdir)
                     logger.info("Working in partition folder {}".format(sd))
+                    # Partitioning dir, e.g partitions_2020-07-23_10-11-46_hMetis
                     for pf in os.listdir(subsubdir):
                         if pf.endswith(PART_DIRECTIVES_EXT):
                             pf = os.path.join(subsubdir, pf)
