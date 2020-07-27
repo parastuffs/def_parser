@@ -6,7 +6,7 @@ Usage:
     def_parser.py [--design=DESIGN] (--digest)
 
 Options:
-    --design=DESIGN         Design to cluster. One amongst ldpc, flipr, boomcore, spc,
+    --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, spc,
                             ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric 
@@ -587,6 +587,8 @@ class Design:
                 if inPins and '- ' in line:
                     # Create the pin gate with its name
                     pin = Pin(line.split(' ')[1])
+                    # netIndex = line.split(' ').index("NET")
+                    # pin.net = self.nets[line.split(' ')[netIndex + 1]]
                     nextLine = f.readline()
 
                     # Skip everything up to the 'PLACED' keyword
@@ -608,6 +610,7 @@ class Design:
                     line = nextLine
                 else:
                     line = f.readline()
+
 
 
     #########  ##    ##   ##########  ##      ##  #########  ##########   #######   
@@ -677,7 +680,9 @@ class Design:
                                 if len(gateBlockSplit) > 1 and gateBlockSplit[1] == "PIN":
                                     # this a pin, add its name to the net
                                     # '2' bacause we have {(, PIN, <pin_name>}
-                                    net.addPin(self.pins.get(gateBlockSplit[2]))
+                                    pin = self.pins.get(gateBlockSplit[2])
+                                    net.addPin(pin)
+                                    pin.net = net
                                 elif len(gateBlockSplit) > 1:
                                     # This is a gate, add its name to the net
                                     # '1' because we have {(, <gate_name>, <gate_port>}
@@ -814,6 +819,18 @@ class Design:
 
         with open("CellCoord.out", 'w') as file:
             file.write(cellCoordStr)
+
+
+        pinCellsStr = ""
+        pinCoordStr = ""
+        for pin in self.pins.values():
+            pinCoordStr += "{} {} {}\n".format(pin.name, pin.x, pin.y)
+            for cell in pin.net.gates.values():
+                pinCellsStr += "{}\n".format(cell.name)
+        with open("pinCoord.out", 'w') as f:
+            f.write(pinCoordStr)
+        with open("pinCells.out", 'w') as f:
+            f.write(pinCellsStr)
 
 
     def sortNets(self):
@@ -2119,6 +2136,11 @@ if __name__ == "__main__":
     args = docopt(__doc__)
     if args["--design"] == "ldpc":
         deffile = "7nm_Jul2017/ldpc.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    if args["--design"] == "ldpc-2020":
+        deffile = "LDPC-2020/ldpc_routed.def"
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
