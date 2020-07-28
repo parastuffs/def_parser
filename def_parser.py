@@ -324,6 +324,11 @@ class Design:
                     boty = min(boty, gate.y)
                     topx = max(topx, gate.x+gate.width)
                     topy = max(topy, gate.y+gate.height)
+                for pin in net.pins.values():
+                    botx = min(botx, pin.x)
+                    boty = min(boty, pin.y)
+                    topx = max(topx, pin.x)
+                    topy = max(topy, pin.y)
                 net.bb = [[botx, boty], [topx, topy]]
                 net.computeHPL()
                 outStr += str(net.hpl)
@@ -365,19 +370,24 @@ class Design:
         '''
         Compute the gates dispersion in each net.
         '''
-        for kn in self.nets:
+        for net in self.nets.values():
             i = 0
             dists = list()
-            gatekeys = list(self.nets[kn].gates.keys())
+            gatekeys = list(net.gates.keys())
             # print gatekeys
             if len(gatekeys) > 1:
                 while i < len(gatekeys):
                     j = i+1
                     while j < len(gatekeys):
                         # Compute the distance between all the gates.
-                        dists.append( abs( sqrt( (self.nets[kn].gates[gatekeys[i]].x - self.nets[kn].gates[gatekeys[j]].x)**2 + (self.nets[kn].gates[gatekeys[i]].y - self.nets[kn].gates[gatekeys[j]].y)**2 ) ) )
+                        dists.append( abs( sqrt( (net.gates[gatekeys[i]].x - net.gates[gatekeys[j]].x)**2 + (net.gates[gatekeys[i]].y - net.gates[gatekeys[j]].y)**2 ) ) )
                         j += 1
                     i += 1
+            if len(net.pins) > 0:
+                for pin in net.pins:
+                    for gate in net.gates.values():
+                        dists.append( abs( sqrt( (gate.x - pin.x)**2 + (gate.y - pin.y)**2 ) ) )
+            if len(dists) > 0:
                 # Compute dispersion
                 maxdist = max(dists)
                 normaldists = [i/maxdist for i in dists]
