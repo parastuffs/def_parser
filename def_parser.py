@@ -7,7 +7,7 @@ Usage:
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, spc,
-                            ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
+                            spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric 
                             or kmeans-random. [default: random]
@@ -741,6 +741,11 @@ class Design:
                                 if 'TAPER' in netDetails:
                                     # Extra keyword meaning we switch back to the default routing rules.
                                     baseIndex += 1
+                                if 'TAPERRULE' in netDetails:
+                                    # Extra keyword meaning we switch to a specific routing rule. 
+                                    # The keyword if followed by said rule, so we should add two indexes.
+                                    # However the first 'TAPERRULE' has already been taken into account in the previous 'TAPER' branch
+                                    baseIndex += 1
                                 # print netDetailsSplit
                                 # print net.name
                                 
@@ -758,8 +763,12 @@ class Design:
                                             del netDetailsSplit[i:i+2]
                                             break
 
-                                x1 = int(netDetailsSplit[baseIndex+3])
-                                y1 = int(netDetailsSplit[baseIndex+4])
+                                try:
+                                    x1 = int(netDetailsSplit[baseIndex+3])
+                                    y1 = int(netDetailsSplit[baseIndex+4])
+                                except ValueError:
+                                    logger.error("Error parsing the line:\n{}\nSplit indexes 3 or 4 is not an integer".format(netDetailsSplit))
+                                    sys.exit()
                                 if netDetailsSplit[baseIndex+6] == '(':
                                     # Some lines only have one set of coordinates (to place a via)
                                     x2 = netDetailsSplit[baseIndex+7]
@@ -2113,7 +2122,12 @@ def extractMemoryMacros(hrows, frows):
         # If the line is not empty
         if line:
             instanceCount = int(line[2])
-            macros[line[0]] = [float(line[7]), float(line[8])]
+            macro = StdCell(line[0])
+            macro.setWidth(float(line[7]))
+            macro.setHeight(float(line[8]))
+
+            macros[macro.name] = macro
+            # logger.debug("Adding memory macro {}".format(line[0]))
 
             # Skip the line containing only an instance name
             for k in range(instanceCount-1):
@@ -2184,6 +2198,16 @@ if __name__ == "__main__":
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 1000
         stdCellsTech = "45nm"
+    elif args["--design"] == "spc-2020":
+        deffile = "spc_NoBuff/spc.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "spc-bufferless-2020":
+        deffile = "spc_NoBuff/spc_NoBuff.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
     elif args["--design"] == "smallboom":
         deffile = "SmallBOOM_CDN45/SmallBOOM.def"
         UNITS_DISTANCE_MICRONS = 2000
