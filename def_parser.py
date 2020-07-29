@@ -1981,7 +1981,7 @@ class Design:
 ##     ##      ##      ##    ##   ##     ##  ##         ##         ##         
  #######       ##      ######      #######   #########  #########  #########  
 
-def extractStdCells(tech):
+def extractStdCells(tech, memory=False):
     """
     @tech: 7nm|45nm|gsclib045
 
@@ -1996,12 +1996,17 @@ def extractStdCells(tech):
     # lefdir = "/home/para/dev/def_parser/lef/"
     if tech == "7nm":
         lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/" # flipr, boomcore, ldpc
+        if memory == True:
+            lefdir = "/home/para/dev/def_parser/spc_NoBuff/mem"
     elif tech == "45nm":
         lefdir = "/home/para/dev/def_parser/7nm_Jul2017/LEF/45/" # ccx, spc
     elif tech == "gsclib045":
         lefdir = "/home/para/dev/def_parser/SmallBOOM_CDN45/" # smallboom
     elif tech == "osu018":
         lefdir = "/home/para/dev/def_parser/msp430/" # msp430
+    else:
+        logger.error("Technology {} not supported. Exiting.".format(tech))
+
 
     
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
@@ -2025,7 +2030,7 @@ def extractStdCells(tech):
                 line = f.readline()
                 while line:
 
-                    if 'MACRO' in line and len(line.split()) == 2:
+                    if 'MACRO' in line and len(line.split()) == 2 and not 'SITE' in line:
                         inMacro = True
                         macroName = line.split()[1] # May need to 'line = line.strip("\n")'
                         # print macroName
@@ -2277,7 +2282,9 @@ if __name__ == "__main__":
 
     extractStdCells(stdCellsTech)
     if MEMORY_MACROS:
-        extractMemoryMacros(14,4)
+        # Old SPC, not supported anymore.
+    #     extractMemoryMacros(14,4)
+        extractStdCells(stdCellsTech, True)
     # exit()
 
     deffile = os.path.join(rootDir, deffile)
