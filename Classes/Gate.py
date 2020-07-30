@@ -12,6 +12,7 @@ class Gate:
         self.separation = 0 # average distance btween the gate and all other gates in the nearest cluster
         self.silouhette = 0 # (cohesion - separation)/max(cohesion, separation)
         self.layer = 0 # 3D layer
+        self.orientation = "" # orientation setting the origin to place the ports: N (bottom left), S (top right), FN (bottom right) or FS (top left)
 
     def setX(self, x):
         self.x = x
@@ -57,3 +58,28 @@ class Gate:
 
     def setSeparation(self, s):
         self.separation = s
+
+    def absoluteCoordinate(self, coordinates):
+        """
+        Transform the given relative coordinates into absolute coordinates.
+
+        Parameters:
+        -----------
+        coordinates : List
+            [float, float]
+
+        Return:
+        -------
+        List
+            [float, float]
+        """
+        if self.orientation == 'N':
+            return [self.x + coordinates[0], self.y + coordinates[1]]
+        elif self.orientation == 'S':
+            return [self.x + self.width - coordinates[0], self.y + self.height - coordinates[1]]
+        elif self.orientation == 'FN':
+            return [self.x + self.width - coordinates[0], self.y + coordinates[1]]
+        elif self.orientation == 'FS':
+            return [self.x + coordinates[0], self.y + self.height - coordinates[1]]
+        else:
+            return None
