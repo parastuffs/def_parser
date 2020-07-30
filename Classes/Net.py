@@ -4,6 +4,7 @@ class Net:
         self.ID = 0
         self.wl = 0
         self.gates = dict()
+        self.gatePins = dict() # {gate name : gate pin name}, like in the DEF file. If it's a pin, {pin name : "PIN"}
         self.pins = dict()
         # Gates dispersion inside of the net.
         # A value of '0' means there is eitheir no gate or only one gate in the net.
