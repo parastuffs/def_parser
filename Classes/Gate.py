@@ -82,4 +82,5 @@ class Gate:
         elif self.orientation == 'FS':
             return [self.x + coordinates[0], self.y + self.height - coordinates[1]]
         else:
+            print("Error, the orientation of the cell '{}' of type '{}' is not regular: '{}'".format(self.name, self.stdCell, self.orientation))
             return None
