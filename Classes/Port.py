@@ -8,6 +8,7 @@ class Port:
         self.y = y # lower left corner, y
         self.width = width # in microns
         self.height = height # in microns
+        self.center = [self.x + (self.width/2), self.y + (self.height/2)]
 
     def setX(self, x):
         self.x = x
