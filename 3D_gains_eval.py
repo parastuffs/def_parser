@@ -26,6 +26,7 @@ from Classes.Gate import *
 from Classes.Net import *
 import locale
 import matplotlib.pyplot as plt
+from alive_progress import alive_bar
 try:
     locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 except locale.Error:
@@ -262,111 +263,113 @@ def Approx_3D_HPL(gates, nets):
     hplStrFilename = "{}_NetHPL3D.out".format(PART_BASENAME)
 
     i = 0
-    for net in nets.values():
-        i += 1
-        if net.hpl > 0:
-            # net.hpl3d = net.hpl
-            # hpl3d0 = net.hpl3d # HPL for the layer 0 of a 3D net
-            # hpl3d1 = net.hpl3d # HPL for the layer 1 of a 3D net
+    with alive_bar(len(nets)) as bar:
+        for net in nets.values():
+            i += 1
+            if net.hpl > 0:
+                # net.hpl3d = net.hpl
+                # hpl3d0 = net.hpl3d # HPL for the layer 0 of a 3D net
+                # hpl3d1 = net.hpl3d # HPL for the layer 1 of a 3D net
 
-            # Substracting the sqrt(gate.width * gate.height) from the hpl would result in negative values for hpl3d. It seems more accurate to remove the area of the cells from the area of the BB.
-            bbArea = (net.bb[1][0] - net.bb[0][0]) * (net.bb[1][1] - net.bb[0][1])
-            bbArea3d = bbArea
-            bbArea3d0 = bbArea
-            bbArea3d1 = bbArea
+                # Substracting the sqrt(gate.width * gate.height) from the hpl would result in negative values for hpl3d. It seems more accurate to remove the area of the cells from the area of the BB.
+                bbArea = (net.bb[1][0] - net.bb[0][0]) * (net.bb[1][1] - net.bb[0][1])
+                bbArea3d = bbArea
+                bbArea3d0 = bbArea
+                bbArea3d1 = bbArea
 
-            DEBUG = False
+                DEBUG = False
 
-            # if net.name == "ALUMemExeUnit/fdivsqrt_downvert_d2s_RoundRawFNToRecFN_n_4632":
-            #     DEBUG = True
+                # if net.name == "ALUMemExeUnit/fdivsqrt_downvert_d2s_RoundRawFNToRecFN_n_4632":
+                #     DEBUG = True
 
-            # if DEBUG:
-            #     logger.debug("{}, BB area: {}, Gate cumul area: {}".format(net.name, (net.bb[1][1]-net.bb[0][1]) * (net.bb[1][0]-net.bb[0][0]), sum([x.width*x.height for x in net.gates.values()])))
+                # if DEBUG:
+                #     logger.debug("{}, BB area: {}, Gate cumul area: {}".format(net.name, (net.bb[1][1]-net.bb[0][1]) * (net.bb[1][0]-net.bb[0][0]), sum([x.width*x.height for x in net.gates.values()])))
 
-            for gateX in gatesNested.keys():
-                if gateX < net.bb[1][0] and gateX >= net.bb[0][0]:
-                    for gateY in gatesNested[gateX].keys():
-                        if gateY < net.bb[1][1] and gateY >= net.bb[0][1]:
+                for gateX in gatesNested.keys():
+                    if gateX < net.bb[1][0] and gateX >= net.bb[0][0]:
+                        for gateY in gatesNested[gateX].keys():
+                            if gateY < net.bb[1][1] and gateY >= net.bb[0][1]:
 
-                            gate = gates[gatesNested[gateX][gateY]]
+                                gate = gates[gatesNested[gateX][gateY]]
 
-                            # Gate not in the net, remove it from the bb
-                            if gate not in net.gates.values():
+                                # Gate not in the net, remove it from the bb
+                                if gate not in net.gates.values():
 
-                                # if DEBUG:
-                                #     logger.debug("Considering gate {} {}".format(gate.name, gate))
+                                    # if DEBUG:
+                                    #     logger.debug("Considering gate {} {}".format(gate.name, gate))
 
-                                width = gate.width
-                                height = gate.height
+                                    width = gate.width
+                                    height = gate.height
 
-                                if ( (gate.x + gate.width) > net.bb[1][0]):
-                                    # logger.warning("Gate {} is too wide, truncating...".format(gate.name))
-                                    width = net.bb[1][0] - gate.x
-                                if ( (gate.y + gate.height) > net.bb[1][1]):
-                                    # logger.warning("Gate '{}' is too tall, truncating...".format(gate.name))
-                                    height = net.bb[1][1] - gate.y
+                                    if ( (gate.x + gate.width) > net.bb[1][0]):
+                                        # logger.warning("Gate {} is too wide, truncating...".format(gate.name))
+                                        width = net.bb[1][0] - gate.x
+                                    if ( (gate.y + gate.height) > net.bb[1][1]):
+                                        # logger.warning("Gate '{}' is too tall, truncating...".format(gate.name))
+                                        height = net.bb[1][1] - gate.y
 
 
-                                # 2D net
-                                if net.is3d == 0:
-                                    # gate has moved to the other layer
-                                    if gate.layer != net.layer:
-                                        # net.hpl3d -= math.sqrt(gate.width * gate.height)
-                                        bbArea3d -= width * height
+                                    # 2D net
+                                    if net.is3d == 0:
+                                        # gate has moved to the other layer
+                                        if gate.layer != net.layer:
+                                            # net.hpl3d -= math.sqrt(gate.width * gate.height)
+                                            bbArea3d -= width * height
 
-                                # 3D net
-                                elif net.is3d == 1:
-                                    # Layer 0
-                                    if gate.layer == 1:
-                                        # hpl3d0 -= math.sqrt(gate.width * gate.height)
-                                        bbArea3d0 -= width * height
-                                        # if bbArea3d0 < 0:
-                                        #     logger.error("3D BB area on layer 0 negative ({}) for net '{}'".format(bbArea3d0, net.name))
-                                            # sys.exit()
-                                    elif gate.layer == 0:
-                                        # hpl3d1 -= math.sqrt(gate.width * gate.height)
-                                        bbArea3d1 -= width * height
-                                        # if bbArea3d1 < 0:
-                                        #     logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
-                                            # sys.exit()
-                                else:
-                                    logger.error("Unexpected value of net.is3d: '{}'".format(net.is3d))
-                                    sys.exit()
-                            else:
-                                # logger.debug("Skipping {} for net {}".format(gate.name, net.name))
-                                # Gate is in the net. Remove it from the BB3D on the opposite layer.
-                                # There shouldn't be any oob error has the BB is computed on their dimensions.
-                                if net.is3d == 1:
-                                    if gate.layer == 1:
-                                        bbArea3d0 -= gate.width * gate.height
-                                    elif gate.layer == 0:
-                                        bbArea3d1 -= gate.width * gate.height
+                                    # 3D net
+                                    elif net.is3d == 1:
+                                        # Layer 0
+                                        if gate.layer == 1:
+                                            # hpl3d0 -= math.sqrt(gate.width * gate.height)
+                                            bbArea3d0 -= width * height
+                                            # if bbArea3d0 < 0:
+                                            #     logger.error("3D BB area on layer 0 negative ({}) for net '{}'".format(bbArea3d0, net.name))
+                                                # sys.exit()
+                                        elif gate.layer == 0:
+                                            # hpl3d1 -= math.sqrt(gate.width * gate.height)
+                                            bbArea3d1 -= width * height
+                                            # if bbArea3d1 < 0:
+                                            #     logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
+                                                # sys.exit()
                                     else:
-                                        logger.error("Unexpected gate layer value {} for {}".format(gate.layer, gate.name))
-            # End of net, add overhead if appropriate
-            if net.is3d:
-                # logger.debug("Net is 3D: {}".format(net.name))
-                # net.hpl3d = hpl3d0 + hpl3d1 + NET_3D_OVERHEAD
-                if bbArea3d0 < 0:
-                    logger.error("3D BB area on layer 0 negative ({}) for net '{}'".format(bbArea3d0, net.name))
-                    bbArea3d0 = 0
+                                        logger.error("Unexpected value of net.is3d: '{}'".format(net.is3d))
+                                        sys.exit()
+                                else:
+                                    # logger.debug("Skipping {} for net {}".format(gate.name, net.name))
+                                    # Gate is in the net. Remove it from the BB3D on the opposite layer.
+                                    # There shouldn't be any oob error has the BB is computed on their dimensions.
+                                    if net.is3d == 1:
+                                        if gate.layer == 1:
+                                            bbArea3d0 -= gate.width * gate.height
+                                        elif gate.layer == 0:
+                                            bbArea3d1 -= gate.width * gate.height
+                                        else:
+                                            logger.error("Unexpected gate layer value {} for {}".format(gate.layer, gate.name))
+                # End of net, add overhead if appropriate
+                if net.is3d:
+                    # logger.debug("Net is 3D: {}".format(net.name))
+                    # net.hpl3d = hpl3d0 + hpl3d1 + NET_3D_OVERHEAD
+                    if bbArea3d0 < 0:
+                        logger.error("3D BB area on layer 0 negative ({}) for net '{}'".format(bbArea3d0, net.name))
+                        bbArea3d0 = 0
 
-                if bbArea3d1 < 0:
-                    logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
-                    bbArea3d1 = 0
-                net.hpl3d = 2*math.sqrt(bbArea3d0) + 2*math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
-            else:
-                # logger.debug("Net is NOT 3D: {}".format(net.name))
-                if bbArea3d < 0:
-                    logger.error("2D negative ({}) for net '{}'".format(bbArea3d, net.name))
-                    bbArea3d = 0
-                net.hpl3d = 2*math.sqrt(bbArea3d)
-            gains.append((net.hpl - net.hpl3d)/net.hpl)
-            if net.hpl3d < 0:
-                logger.warning("3D HPL for {} is {}, 2D was {}".format(net.name, net.hpl3d, net.hpl))
+                    if bbArea3d1 < 0:
+                        logger.error("3D BB area on layer 1 negative ({}) for net '{}'".format(bbArea3d1, net.name))
+                        bbArea3d1 = 0
+                    net.hpl3d = 2*math.sqrt(bbArea3d0) + 2*math.sqrt(bbArea3d1) + NET_3D_OVERHEAD
+                else:
+                    # logger.debug("Net is NOT 3D: {}".format(net.name))
+                    if bbArea3d < 0:
+                        logger.error("2D negative ({}) for net '{}'".format(bbArea3d, net.name))
+                        bbArea3d = 0
+                    net.hpl3d = 2*math.sqrt(bbArea3d)
+                gains.append((net.hpl - net.hpl3d)/net.hpl)
+                if net.hpl3d < 0:
+                    logger.warning("3D HPL for {} is {}, 2D was {}".format(net.name, net.hpl3d, net.hpl))
 
-                        # logger.debug("Net {}, found gate {} in BB {}, coordinates: ({}, {})".format(net.name, gate.name, net.bb, gate.x, gate.y))
-            hplStr += "{}, {}, {}, {}, {}, {}\n".format(net.name, net.hpl, net.hpl3d, gains[-1], net.wl, str(net.is3d))
+                            # logger.debug("Net {}, found gate {} in BB {}, coordinates: ({}, {})".format(net.name, gate.name, net.bb, gate.x, gate.y))
+                hplStr += "{}, {}, {}, {}, {}, {}\n".format(net.name, net.hpl, net.hpl3d, gains[-1], net.wl, str(net.is3d))
+            bar()
     logger.debug("Done.")
     logger.info("Average gain over HPL: {}".format(statistics.mean(gains)))
     logger.info("Exporting HPL to {}".format(hplStrFilename))
