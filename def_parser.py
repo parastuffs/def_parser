@@ -40,6 +40,7 @@ import sys
 import matplotlib.pyplot as plt
 import bst
 import statistics
+from alive_progress import alive_bar
 from Classes.Cluster import *
 from Classes.Gate import *
 from Classes.Net import *
@@ -1788,34 +1789,40 @@ class Design:
             minX = 0
             minY = 0
             previousDist = float('inf')
-            for gk in self.gates:
-                disClosest = float('inf')
-                clustClosest = 0
-                for center in enumerate(centers):
-                    disCenter = EuclideanDistance( (self.gates[gk].x, self.gates[gk].y), center[1])
-                    if disCenter < disClosest:
-                        disClosest = disCenter
-                        # The id of the center is the id of the cluster
-                        clustClosest = center[0]
-                self.clusters[clustClosest].addGate(self.gates[gk])
-                self.gates[gk].addCluster(self.clusters[clustClosest])
+            logger.info("Place gates in the closest cluster...")
+            with alive_bar(len(self.gates)) as bar:
+                for gk in self.gates:
+                    disClosest = float('inf')
+                    clustClosest = 0
+                    for center in enumerate(centers):
+                        disCenter = EuclideanDistance( (self.gates[gk].x, self.gates[gk].y), center[1])
+                        if disCenter < disClosest:
+                            disClosest = disCenter
+                            # The id of the center is the id of the cluster
+                            clustClosest = center[0]
+                    self.clusters[clustClosest].addGate(self.gates[gk])
+                    self.gates[gk].addCluster(self.clusters[clustClosest])
+                    bar()
 
             # Compute center of mass for each cluster
             centerOfMass = list()
-            for ck in self.clusters:
-                sumx = 0
-                sumy = 0
-                if len(self.clusters[ck].gates) > 0:
-                    for gk in self.clusters[ck].gates:
-                        # This does not need to be optimized. Even if the sum is computed during the cluster formation, we do not gain time. This is fine and more readable.
-                        sumx += self.clusters[ck].gates[gk].x
-                        sumy += self.clusters[ck].gates[gk].y
-                    centerOfMass.append(( sumx/len(self.clusters[ck].gates), sumy/len(self.clusters[ck].gates) ))
-                    centerSkewTmp.append(EuclideanDistance(centerOfMass[-1], centers[len(centerOfMass)-1]))
-                else:
-                    # If a cluster does not have any gate, get the old value.
-                    # This is OK since self.clusters is read in the same order as <centers>.
-                    centerOfMass.append( centers[len(centerOfMass)-1] )
+            logger.info("Updating center of mass for each cluster...")
+            with alive_bar(len(self.clusters)) as bar:
+                for ck in self.clusters:
+                    sumx = 0
+                    sumy = 0
+                    if len(self.clusters[ck].gates) > 0:
+                        for gk in self.clusters[ck].gates:
+                            # This does not need to be optimized. Even if the sum is computed during the cluster formation, we do not gain time. This is fine and more readable.
+                            sumx += self.clusters[ck].gates[gk].x
+                            sumy += self.clusters[ck].gates[gk].y
+                        centerOfMass.append(( sumx/len(self.clusters[ck].gates), sumy/len(self.clusters[ck].gates) ))
+                        centerSkewTmp.append(EuclideanDistance(centerOfMass[-1], centers[len(centerOfMass)-1]))
+                    else:
+                        # If a cluster does not have any gate, get the old value.
+                        # This is OK since self.clusters is read in the same order as <centers>.
+                        centerOfMass.append( centers[len(centerOfMass)-1] )
+                    bar()
             percentile = np.percentile(centerSkewTmp, 95)
             if percentile < convCriteria:
                 convergence = True
