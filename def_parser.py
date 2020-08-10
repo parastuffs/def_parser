@@ -498,86 +498,88 @@ class Design:
         cellSizeStr = "cell width height\n"
 
         with open(deffile, 'r') as f:
-            for line in f:
-                # TODO: clean to remove the use of break
-                # TODO: try to need less try/except
-                if endOfComponents:
-                    break # Dirty, but I don't care
-                if inComponents and not 'END COMPONENTS' in line:
-                    # Parse the line and extract the cell
-                    split = line.split(' ')
-                    # print split
-                    try:
-                        split.index(";\n")
-                    except:
-                        gate = Gate(split[1])
-                        # AssignStdCellToGate(gate, macros[split[2]])
-                        gate.setStdCell(split[2])
-                        # if macros.get(gate.getStdCell()) == None:
-                        #     print "Macro not found when looking for cell '" + str(gate.name) + "' of type '" + gate.getStdCell() + "'"
-                        if gate.getStdCell() in unknownCells:
-                            # StdCell missing from the .lef file. Use default width/height
-                            gate.setWidth(0.25)
-                            gate.setHeight(0.25)
-                            unknownCellsCounts += 1
-                        else:
-                            try:
-                                gate.setWidth(macros.get(gate.getStdCell()).width) # Get the width from the macros dictionary.
-                                gate.setHeight(macros.get(gate.getStdCell()).height) # Get the height from the macros dictionary.
-                            except:
-                                logger.error("Could not find the macro '{}' while parsing the line\n{}\nThis macro might be missing from the LEF file. \nExiting.".format(gate.getStdCell(), line))
-                                sys.exit()
-                        cellSizeStr += "{} {} {}\n".format(gate.name, gate.width, gate.height)
-                        """
-                        A cell is always defined on a single line.
-                        On this line, its coordinates are written as
-                        'PLACED ( <abscissa> <ordinate> )'
-                        Hence, we simply need to find the 'PLACE' keyword
-                        and take the second and third token to extract
-                        the coordinates.
-                        """
-                        # TODO: Is there a way to search the index for two words?
-                        # Like index("PLACED" | "FIXED')
+            with alive_bar(unknown='balls_scrolling') as bar:
+                for line in f:
+                    bar()
+                    # TODO: clean to remove the use of break
+                    # TODO: try to need less try/except
+                    if endOfComponents:
+                        break # Dirty, but I don't care
+                    if inComponents and not 'END COMPONENTS' in line:
+                        # Parse the line and extract the cell
+                        split = line.split(' ')
+                        # print split
                         try:
-                            gate.setX(int(split[split.index("PLACED") + 2])/UNITS_DISTANCE_MICRONS)
+                            split.index(";\n")
                         except:
+                            gate = Gate(split[1])
+                            # AssignStdCellToGate(gate, macros[split[2]])
+                            gate.setStdCell(split[2])
+                            # if macros.get(gate.getStdCell()) == None:
+                            #     print "Macro not found when looking for cell '" + str(gate.name) + "' of type '" + gate.getStdCell() + "'"
+                            if gate.getStdCell() in unknownCells:
+                                # StdCell missing from the .lef file. Use default width/height
+                                gate.setWidth(0.25)
+                                gate.setHeight(0.25)
+                                unknownCellsCounts += 1
+                            else:
+                                try:
+                                    gate.setWidth(macros.get(gate.getStdCell()).width) # Get the width from the macros dictionary.
+                                    gate.setHeight(macros.get(gate.getStdCell()).height) # Get the height from the macros dictionary.
+                                except:
+                                    logger.error("Could not find the macro '{}' while parsing the line\n{}\nThis macro might be missing from the LEF file. \nExiting.".format(gate.getStdCell(), line))
+                                    sys.exit()
+                            cellSizeStr += "{} {} {}\n".format(gate.name, gate.width, gate.height)
+                            """
+                            A cell is always defined on a single line.
+                            On this line, its coordinates are written as
+                            'PLACED ( <abscissa> <ordinate> )'
+                            Hence, we simply need to find the 'PLACE' keyword
+                            and take the second and third token to extract
+                            the coordinates.
+                            """
+                            # TODO: Is there a way to search the index for two words?
+                            # Like index("PLACED" | "FIXED')
                             try:
-                                gate.setX(int(split[split.index("FIXED") + 2])/UNITS_DISTANCE_MICRONS)
+                                gate.setX(int(split[split.index("PLACED") + 2])/UNITS_DISTANCE_MICRONS)
                             except:
-                                # If this raises an exception, it probably means
-                                # we reached the 'END COMPONENTS'
-                                pass
+                                try:
+                                    gate.setX(int(split[split.index("FIXED") + 2])/UNITS_DISTANCE_MICRONS)
+                                except:
+                                    # If this raises an exception, it probably means
+                                    # we reached the 'END COMPONENTS'
+                                    pass
 
-                        try:
-                            gate.orientation = split[split.index("PLACED") + 5].strip()
-                        except:
                             try:
-                                gate.orientation = split[split.index("FIXED") + 5].strip()
+                                gate.orientation = split[split.index("PLACED") + 5].strip()
                             except:
-                                # If this raises an exception, it probably means
-                                # we reached the 'END COMPONENTS'
-                                pass
+                                try:
+                                    gate.orientation = split[split.index("FIXED") + 5].strip()
+                                except:
+                                    # If this raises an exception, it probably means
+                                    # we reached the 'END COMPONENTS'
+                                    pass
 
-                        try:
-                            gate.setY(int(split[split.index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
-                        except:
                             try:
-                                gate.setY(int(split[split.index("FIXED") + 3])/UNITS_DISTANCE_MICRONS)
+                                gate.setY(int(split[split.index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
                             except:
-                                pass
+                                try:
+                                    gate.setY(int(split[split.index("FIXED") + 3])/UNITS_DISTANCE_MICRONS)
+                                except:
+                                    pass
+                                else:
+                                    self.addGate(gate)
                             else:
                                 self.addGate(gate)
-                        else:
-                            self.addGate(gate)
-                        # endOfComponents = True
+                            # endOfComponents = True
 
 
-                if 'END COMPONENTS' in line:
-                    inComponents = False
-                    endOfComponents = True
+                    if 'END COMPONENTS' in line:
+                        inComponents = False
+                        endOfComponents = True
 
-                elif 'COMPONENTS' in line:
-                    inComponents = True
+                    elif 'COMPONENTS' in line:
+                        inComponents = True
 
         """
         Compute the total surface of all the gates.
@@ -673,135 +675,106 @@ class Design:
         netCount = 0
 
         with open(deffile, 'r') as f:
-            line = f.readline()
-            while line:
+            with alive_bar(unknown='balls_scrolling') as bar:
+                line = f.readline()
+                while line:
+                    bar()
 
-                if 'END NETS' in line:
-                    endOfNets = True
-                    break
+                    if 'END NETS' in line:
+                        endOfNets = True
+                        break
 
-                if ('NETS' in line and not 'SPECIALNETS' in line) or (inNets):
-                    inNets = True
-                    line = line.strip("\n")
+                    if ('NETS' in line and not 'SPECIALNETS' in line) or (inNets):
+                        inNets = True
+                        line = line.strip("\n")
 
-                    if '- ' in line:
-                        # new net
-                        net = Net(line.split(' ')[1])
-                        instancesPerNetsStr += str(net.name)
-                        netsStr += str(net.name) + "\n"
-                        # Read the next line after the net name,
-                        # it should contain the connected cells names.
-                        netDetails = f.readline()
-                        while not 'ROUTED' in netDetails and not ';' in netDetails and not 'PROPERTY' in netDetails and not 'SOURCE' in netDetails:
+                        if '- ' in line:
+                            # new net
+                            net = Net(line.split(' ')[1])
+                            instancesPerNetsStr += str(net.name)
+                            netsStr += str(net.name) + "\n"
+                            # Read the next line after the net name,
+                            # it should contain the connected cells names.
+                            netDetails = f.readline()
+                            while not 'ROUTED' in netDetails and not ';' in netDetails and not 'PROPERTY' in netDetails and not 'SOURCE' in netDetails:
 
-                            if "NONDEFAULTRULE" in netDetails:
-                                # Some net use specific rules for spacing and track width.
-                                # The keyword for this is 'NONDEFAULTRULE' and occurs
-                                # before the 'ROUTED' keyword.
-                                # If we find 'NONDEFAULTRULE', skip the line.
+                                if "NONDEFAULTRULE" in netDetails:
+                                    # Some net use specific rules for spacing and track width.
+                                    # The keyword for this is 'NONDEFAULTRULE' and occurs
+                                    # before the 'ROUTED' keyword.
+                                    # If we find 'NONDEFAULTRULE', skip the line.
+                                    netDetails = f.readline().strip()
+                                    continue # ignores the end of the loop and skip to the next iteration.
+
+                                if "+ USE" in netDetails or "+ WEIGHT" in netDetails:
+                                    # This is an empty net. Even though it does connect gates,
+                                    # there is no routing information. Keep its length at 0.
+                                    netDetails = f.readline().strip()
+                                    continue
+
+
+                                split = netDetails.split(')') # Split the line so that each element is only one pin or gate
+                                for gateBlock in split:
+                                    gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
+
+                                    if len(gateBlockSplit) > 1 and gateBlockSplit[1] == "PIN":
+                                        # this a pin, add its name to the net
+                                        # '2' bacause we have {(, PIN, <pin_name>}
+                                        pin = self.pins.get(gateBlockSplit[2])
+                                        net.addPin(pin)
+                                        pin.net = net
+                                        net.gatePins[pin.name] = "PIN"
+                                    elif len(gateBlockSplit) > 1:
+                                        # This is a gate, add its name to the net
+                                        # '1' because we have {(, <gate_name>, <gate_port>}
+                                        gate = self.gates.get(gateBlockSplit[1])
+                                        if gate == None:
+                                            # This is not a normal situation. Debug.
+                                            logger.error("A gate name has not been recognized in the net description.")
+                                            logger.error("gateblock: {}".format(gateBlock))
+                                            logger.error("netdetails: {}".format(netDetails))
+                                            logger.error("Gate we are trying to add: '{}'".format(gateBlockSplit[1]))
+                                            logger.error("For the net: {}".format(net.name))
+                                            sys.exit()
+                                        net.addGate(gate)
+                                        gate.addNet(net)
+                                        net.gatePins[gate.name] = gateBlockSplit[2]
+                                        # TODO if gate.name contains '[' or ']', enclose the name between '{}'
+                                        instancesPerNetsStr += " " + str(gate.name)
+
+                                        cellCoordStr += str(net.name) + "," + str(gate.name) + "," + \
+                                                        str(gate.x) + ', ' + str(gate.y) + "\n"
+
                                 netDetails = f.readline().strip()
-                                continue # ignores the end of the loop and skip to the next iteration.
 
-                            if "+ USE" in netDetails or "+ WEIGHT" in netDetails:
-                                # This is an empty net. Even though it does connect gates,
-                                # there is no routing information. Keep its length at 0.
-                                netDetails = f.readline().strip()
-                                continue
+                            netLength = 0
 
+                            instancesPerNetsStr += "\n"
 
-                            split = netDetails.split(')') # Split the line so that each element is only one pin or gate
-                            for gateBlock in split:
-                                gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
+                            #####
+                            # Manhattan distances instead of actual wirelength
+                            #####
+                            if manhattanWireLength:
+                                netCount += 1
+                                # logger.debug("Computing Manhattan for net #{}: {}".format(netCount, net.name))
+                                cellsToConnect = list(net.gatePins.keys())
+                                # Typically want to avoid an unconnected wire or pin on a cell
+                                if len(cellsToConnect) > 1:
 
-                                if len(gateBlockSplit) > 1 and gateBlockSplit[1] == "PIN":
-                                    # this a pin, add its name to the net
-                                    # '2' bacause we have {(, PIN, <pin_name>}
-                                    pin = self.pins.get(gateBlockSplit[2])
-                                    net.addPin(pin)
-                                    pin.net = net
-                                    net.gatePins[pin.name] = "PIN"
-                                elif len(gateBlockSplit) > 1:
-                                    # This is a gate, add its name to the net
-                                    # '1' because we have {(, <gate_name>, <gate_port>}
-                                    gate = self.gates.get(gateBlockSplit[1])
-                                    if gate == None:
-                                        # This is not a normal situation. Debug.
-                                        logger.error("A gate name has not been recognized in the net description.")
-                                        logger.error("gateblock: {}".format(gateBlock))
-                                        logger.error("netdetails: {}".format(netDetails))
-                                        logger.error("Gate we are trying to add: '{}'".format(gateBlockSplit[1]))
-                                        logger.error("For the net: {}".format(net.name))
-                                        sys.exit()
-                                    net.addGate(gate)
-                                    gate.addNet(net)
-                                    net.gatePins[gate.name] = gateBlockSplit[2]
-                                    # TODO if gate.name contains '[' or ']', enclose the name between '{}'
-                                    instancesPerNetsStr += " " + str(gate.name)
+                                    cellsInNet = list(net.gatePins.keys())
+                                    # logger.debug("cellsToConnect: {}".format(cellsToConnect))
+                                    # logger.debug("cellsInNet: {}".format(cellsInNet))
+                                    while len(cellsToConnect) > 0:
+                                        minDist = float('inf')
+                                        closestCell = ""
+                                        # Name of the gate (or pin) we want to connect
+                                        gateNameToConnect = cellsToConnect[-1]
 
-                                    cellCoordStr += str(net.name) + "," + str(gate.name) + "," + \
-                                                    str(gate.x) + ', ' + str(gate.y) + "\n"
-
-                            netDetails = f.readline().strip()
-
-                        netLength = 0
-
-                        instancesPerNetsStr += "\n"
-
-                        #####
-                        # Manhattan distances instead of actual wirelength
-                        #####
-                        if manhattanWireLength:
-                            netCount += 1
-                            # logger.debug("Computing Manhattan for net #{}: {}".format(netCount, net.name))
-                            cellsToConnect = list(net.gatePins.keys())
-                            # Typically want to avoid an unconnected wire or pin on a cell
-                            if len(cellsToConnect) > 1:
-
-                                cellsInNet = list(net.gatePins.keys())
-                                # logger.debug("cellsToConnect: {}".format(cellsToConnect))
-                                # logger.debug("cellsInNet: {}".format(cellsInNet))
-                                while len(cellsToConnect) > 0:
-                                    minDist = float('inf')
-                                    closestCell = ""
-                                    # Name of the gate (or pin) we want to connect
-                                    gateNameToConnect = cellsToConnect[-1]
-
-                                    # If it's actually a Pin, there is no port or whatnot
-                                    if net.gatePins[gateNameToConnect] == "PIN":
-                                        # logger.debug("It's a PIN!")
-                                        gateToConnectX = self.pins[gateNameToConnect].x
-                                        gateToConnectY = self.pins[gateNameToConnect].y
-
-                                        # Compare the pin to all other cells in the net
-                                        for gateName in cellsInNet:
-                                            # Do not compare the pin to itself
-                                            if gateName != gateNameToConnect:
-                                                if net.gatePins[gateName] == "PIN":
-                                                    dist = abs(gateToConnectX - self.pins[gateName].x) + abs(gateToConnectY - self.pins[gateName].y)
-                                                else:
-                                                    # Intermediate vars to get the coordinates of the port
-                                                    gate = self.gates[gateName]
-                                                    stdCellName = gate.stdCell
-                                                    gatePin = macros[stdCellName].pins[net.gatePins[gateName]]
-                                                    for port in gatePin.ports:
-                                                        portCoordinates = gate.absoluteCoordinate(port.center)
-                                                        dist = abs(gateToConnectX - portCoordinates[0]) + abs(gateToConnectX - portCoordinates[1])
-                                                        if dist < minDist:
-                                                            minDist = dist
-                                                            closestCell = gateName
-                                                if dist < minDist:
-                                                    minDist = dist
-                                                    closestCell = gateName
-                                    else:
-                                        # logger.debug("It's not a PIN!")
-                                        # Intermediate vars to get the coordinates of the port
-                                        gate = self.gates[gateNameToConnect]
-                                        stdCellName = gate.stdCell
-                                        gatePin = macros[stdCellName].pins[net.gatePins[gateNameToConnect]]
-                                        for port in gatePin.ports:
-                                            portCoordinates = gate.absoluteCoordinate(port.center)
-                                            gateToConnectX = portCoordinates[0]
-                                            gateToConnectY = portCoordinates[1]
+                                        # If it's actually a Pin, there is no port or whatnot
+                                        if net.gatePins[gateNameToConnect] == "PIN":
+                                            # logger.debug("It's a PIN!")
+                                            gateToConnectX = self.pins[gateNameToConnect].x
+                                            gateToConnectY = self.pins[gateNameToConnect].y
 
                                             # Compare the pin to all other cells in the net
                                             for gateName in cellsInNet:
@@ -823,170 +796,201 @@ class Design:
                                                     if dist < minDist:
                                                         minDist = dist
                                                         closestCell = gateName
+                                        else:
+                                            # logger.debug("It's not a PIN!")
+                                            # Intermediate vars to get the coordinates of the port
+                                            gate = self.gates[gateNameToConnect]
+                                            stdCellName = gate.stdCell
+                                            gatePin = macros[stdCellName].pins[net.gatePins[gateNameToConnect]]
+                                            for port in gatePin.ports:
+                                                portCoordinates = gate.absoluteCoordinate(port.center)
+                                                gateToConnectX = portCoordinates[0]
+                                                gateToConnectY = portCoordinates[1]
+
+                                                # Compare the pin to all other cells in the net
+                                                for gateName in cellsInNet:
+                                                    # Do not compare the pin to itself
+                                                    if gateName != gateNameToConnect:
+                                                        if net.gatePins[gateName] == "PIN":
+                                                            dist = abs(gateToConnectX - self.pins[gateName].x) + abs(gateToConnectY - self.pins[gateName].y)
+                                                        else:
+                                                            # Intermediate vars to get the coordinates of the port
+                                                            gate = self.gates[gateName]
+                                                            stdCellName = gate.stdCell
+                                                            gatePin = macros[stdCellName].pins[net.gatePins[gateName]]
+                                                            for port in gatePin.ports:
+                                                                portCoordinates = gate.absoluteCoordinate(port.center)
+                                                                dist = abs(gateToConnectX - portCoordinates[0]) + abs(gateToConnectX - portCoordinates[1])
+                                                                if dist < minDist:
+                                                                    minDist = dist
+                                                                    closestCell = gateName
+                                                        if dist < minDist:
+                                                            minDist = dist
+                                                            closestCell = gateName
 
 
-                                    if minDist == float('inf'):
-                                        logger.error("Net {} still has infinity wl for cell {}".format(net.name, gateNameToConnect))
-                                    netLength += minDist
-                                    cellsToConnect.pop()
-                                    if closestCell in cellsToConnect:
-                                        cellsToConnect.remove(closestCell)
+                                        if minDist == float('inf'):
+                                            logger.error("Net {} still has infinity wl for cell {}".format(net.name, gateNameToConnect))
+                                        netLength += minDist
+                                        cellsToConnect.pop()
+                                        if closestCell in cellsToConnect:
+                                            cellsToConnect.remove(closestCell)
 
-                            # Skip the rest of the details
-                            while not ';' in netDetails:
-                                netDetails = f.readline().strip()
+                                # Skip the rest of the details
+                                while not ';' in netDetails:
+                                    netDetails = f.readline().strip()
 
-                        #####
-                        # MSTST
-                        #####
-                        elif mststWireLength:
-                            cellsToConnect = list(net.gatePins.keys())
+                            #####
+                            # MSTST
+                            #####
+                            elif mststWireLength:
+                                cellsToConnect = list(net.gatePins.keys())
 
-                            points = []
-                            for cell in net.gatePins.keys():
-                                # If the cell is actually a pin
-                                if net.gatePins[cell] == "PIN":
-                                    points.append([self.pins[cell].x, self.pins[cell].y])
-                                else:
-                                    gate = self.gates[cell]
-                                    stdCellName = gate.stdCell
-                                    gatePin = macros[stdCellName].pins[net.gatePins[cell]]
-                                    # Take the first port. It's easier to handle.
-                                    port = gatePin.ports[0]
-                                    # points.append([port.center[0] + gate.x, port.center[1] + gate.y])
-                                    points.append(gate.absoluteCoordinate(port.center))
-
-                            netLength = self.MSTSTwl(points)
-                            # Skip the rest of the details
-                            while not ';' in netDetails:
-                                netDetails = f.readline().strip()
-                            if netLength == 0 and len(points) > 1:
-                                logger.debug("{}: MSTST length of 0...".format(net.name))
-                                logger.debug("\tPoints in net: {}".format(points))
-                                logger.debug("\tGates in net: {}".format(cellsToConnect))
-                                for cell in cellsToConnect:
-                                    gate = self.gates[cell]
-                                    stdCellName = gate.stdCell
-                                    gatePin = macros[stdCellName].pins[net.gatePins[cell]]
-                                    # Take the first port. It's easier to handle.
-                                    port = gatePin.ports[0]
-                                    logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
-                                    logger.debug("\tPort center: {}".format(port.center))
-                                    logger.debug("\tOrientation: {}".format(gate.orientation))
-
-
-                        #####
-                        # Actual wirelength
-                        #####
-                        else:
-
-                            while not ';' in netDetails:
-                                # Now, we are looking at the detailed route of the net.
-                                # It ends with a single ';' alone on its own line.
-                                # On each line, we have:
-                                # NEW <routing layer> ( x1 y1 ) ( x2 y2 ) [via(optional]
-                                # x2 or y2 can be replaced with '*', meaning the same x1 or y2 is to be used.
-                                # 
-                                # The only exception should be the first line, which begins with 'ROUTED'
-
-
-
-                                if not 'SOURCE' in netDetails and not 'USE' in netDetails and not 'WEIGHT' in netDetails and not 'PROPERTY' in netDetails:
-                                    # Skip the lines containing those taboo words.
-                                    netDetailsSplit = netDetails.split(' ')
-                                    baseIndex = 0 # baseIndex to be shifted in case the line begins with 'ROUTED's
-                                    if 'ROUTED' in netDetails:
-                                        # First line begins with '+ ROUTED', subsequent ones don't.
-                                        # Beware the next lines begin with 'NEW'
-                                        baseIndex += 1
-                                    if 'TAPER' in netDetails:
-                                        # Extra keyword meaning we switch back to the default routing rules.
-                                        baseIndex += 1
-                                    if 'TAPERRULE' in netDetails:
-                                        # Extra keyword meaning we switch to a specific routing rule. 
-                                        # The keyword if followed by said rule, so we should add two indexes.
-                                        # However the first 'TAPERRULE' has already been taken into account in the previous 'TAPER' branch
-                                        baseIndex += 1
-                                    # print netDetailsSplit
-                                    # print net.name
-                                    
-                                    # Now check if we have a net extension (see 'routingPoints extValue' in doc)
-                                    # We only need to do this for the first coordinates (x1 y1)
-                                    if netDetailsSplit[baseIndex+5] != ")":
-                                        # There is a net extension. Delete it.
-                                        del netDetailsSplit[baseIndex+5]
-
-                                    # Now if there is a MASK statement between two coordinates, trash it.
-                                    if "MASK" in netDetailsSplit:
-                                        for i in range(len(netDetailsSplit)):
-                                            if netDetailsSplit[i] == "MASK":
-                                                # "MASK" is always followed by an integer. Trash it alongside. cf. lefdef reference v5.8 p. 261
-                                                del netDetailsSplit[i:i+2]
-                                                break
-
-                                    try:
-                                        x1 = int(netDetailsSplit[baseIndex+3])
-                                        y1 = int(netDetailsSplit[baseIndex+4])
-                                    except ValueError:
-                                        logger.error("Error parsing the line:\n{}\nSplit indexes 3 or 4 is not an integer".format(netDetailsSplit))
-                                        sys.exit()
-                                    if netDetailsSplit[baseIndex+6] == '(':
-                                        # Some lines only have one set of coordinates (to place a via)
-                                        x2 = netDetailsSplit[baseIndex+7]
-                                        y2 = netDetailsSplit[baseIndex+8]
+                                points = []
+                                for cell in net.gatePins.keys():
+                                    # If the cell is actually a pin
+                                    if net.gatePins[cell] == "PIN":
+                                        points.append([self.pins[cell].x, self.pins[cell].y])
                                     else:
-                                        x2 = x1
-                                        y2 = y1
+                                        gate = self.gates[cell]
+                                        stdCellName = gate.stdCell
+                                        gatePin = macros[stdCellName].pins[net.gatePins[cell]]
+                                        # Take the first port. It's easier to handle.
+                                        port = gatePin.ports[0]
+                                        # points.append([port.center[0] + gate.x, port.center[1] + gate.y])
+                                        points.append(gate.absoluteCoordinate(port.center))
+
+                                netLength = self.MSTSTwl(points)
+                                # Skip the rest of the details
+                                while not ';' in netDetails:
+                                    netDetails = f.readline().strip()
+                                if netLength == 0 and len(points) > 1:
+                                    logger.debug("{}: MSTST length of 0...".format(net.name))
+                                    logger.debug("\tPoints in net: {}".format(points))
+                                    logger.debug("\tGates in net: {}".format(cellsToConnect))
+                                    for cell in cellsToConnect:
+                                        gate = self.gates[cell]
+                                        stdCellName = gate.stdCell
+                                        gatePin = macros[stdCellName].pins[net.gatePins[cell]]
+                                        # Take the first port. It's easier to handle.
+                                        port = gatePin.ports[0]
+                                        logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
+                                        logger.debug("\tPort center: {}".format(port.center))
+                                        logger.debug("\tOrientation: {}".format(gate.orientation))
+
+
+                            #####
+                            # Actual wirelength
+                            #####
+                            else:
+
+                                while not ';' in netDetails:
+                                    # Now, we are looking at the detailed route of the net.
+                                    # It ends with a single ';' alone on its own line.
+                                    # On each line, we have:
+                                    # NEW <routing layer> ( x1 y1 ) ( x2 y2 ) [via(optional]
+                                    # x2 or y2 can be replaced with '*', meaning the same x1 or y2 is to be used.
+                                    # 
+                                    # The only exception should be the first line, which begins with 'ROUTED'
+
+
+
+                                    if not 'SOURCE' in netDetails and not 'USE' in netDetails and not 'WEIGHT' in netDetails and not 'PROPERTY' in netDetails:
+                                        # Skip the lines containing those taboo words.
+                                        netDetailsSplit = netDetails.split(' ')
+                                        baseIndex = 0 # baseIndex to be shifted in case the line begins with 'ROUTED's
+                                        if 'ROUTED' in netDetails:
+                                            # First line begins with '+ ROUTED', subsequent ones don't.
+                                            # Beware the next lines begin with 'NEW'
+                                            baseIndex += 1
+                                        if 'TAPER' in netDetails:
+                                            # Extra keyword meaning we switch back to the default routing rules.
+                                            baseIndex += 1
+                                        if 'TAPERRULE' in netDetails:
+                                            # Extra keyword meaning we switch to a specific routing rule. 
+                                            # The keyword if followed by said rule, so we should add two indexes.
+                                            # However the first 'TAPERRULE' has already been taken into account in the previous 'TAPER' branch
+                                            baseIndex += 1
                                         # print netDetailsSplit
-                                    # Some lines have up to 3 pairs of coordinates
-                                    if len(netDetailsSplit) > baseIndex+10 and netDetailsSplit[baseIndex+10] == '(':
-                                        x3 = netDetailsSplit[baseIndex+11]
-                                        y3 = netDetailsSplit[baseIndex+12]
-                                    else:
-                                        x3 = x2
-                                        y3 = y2
-                                    # TODO What is the third number we sometimes have in the second coordinates bracket?
-                                    if x2 == "*":
-                                        x2 = int(x1)
-                                    else:
-                                        x2 = int(x2)
-                                    if y2 == "*":
-                                        y2 = int(y1)
-                                    else:
-                                        y2 = int(y2)
-                                    if x3 == "*":
-                                        x3 = x2
-                                    else:
-                                        x3 = int(x3)
-                                    if y3 == "*":
-                                        y3 = y2
-                                    else:
-                                        y3 = int(y3)
-                                    # TODO Ternary expressions?
-                                    # TODO WEIGHT? cf net clock
-                                    netLength += (abs(y2 - y1) + abs(x2 - x1) + abs(y3 - y2) + abs(x3 - x2))/UNITS_DISTANCE_MICRONS 
-                                    # if net.name == "clock_module_0.and_dco_dis5.a":
-                                    #     logger.debug("In net clock_module_0.and_dco_dis5.a, netDetailsSplit is: '{}'".format(netDetailsSplit))
-                                    #     logger.debug("baseIndex = {}".format(baseIndex))
-                                    #     logger.debug("netLength = {}".format(netLength))
-                                    #     logger.debug("x1 = {}, y1 = {}, x2 = {}, y2 = {}, x3 = {}, y3 = {}".format(x1, y1, x2, y2, x3, y3))
-                                    #     logger.debug("len(netDetailsSplit) = {} and [baseIndex+10] = '{}'".format(len(netDetailsSplit), [baseIndex+10]))
+                                        # print net.name
+                                        
+                                        # Now check if we have a net extension (see 'routingPoints extValue' in doc)
+                                        # We only need to do this for the first coordinates (x1 y1)
+                                        if netDetailsSplit[baseIndex+5] != ")":
+                                            # There is a net extension. Delete it.
+                                            del netDetailsSplit[baseIndex+5]
+
+                                        # Now if there is a MASK statement between two coordinates, trash it.
+                                        if "MASK" in netDetailsSplit:
+                                            for i in range(len(netDetailsSplit)):
+                                                if netDetailsSplit[i] == "MASK":
+                                                    # "MASK" is always followed by an integer. Trash it alongside. cf. lefdef reference v5.8 p. 261
+                                                    del netDetailsSplit[i:i+2]
+                                                    break
+
+                                        try:
+                                            x1 = int(netDetailsSplit[baseIndex+3])
+                                            y1 = int(netDetailsSplit[baseIndex+4])
+                                        except ValueError:
+                                            logger.error("Error parsing the line:\n{}\nSplit indexes 3 or 4 is not an integer".format(netDetailsSplit))
+                                            sys.exit()
+                                        if netDetailsSplit[baseIndex+6] == '(':
+                                            # Some lines only have one set of coordinates (to place a via)
+                                            x2 = netDetailsSplit[baseIndex+7]
+                                            y2 = netDetailsSplit[baseIndex+8]
+                                        else:
+                                            x2 = x1
+                                            y2 = y1
+                                            # print netDetailsSplit
+                                        # Some lines have up to 3 pairs of coordinates
+                                        if len(netDetailsSplit) > baseIndex+10 and netDetailsSplit[baseIndex+10] == '(':
+                                            x3 = netDetailsSplit[baseIndex+11]
+                                            y3 = netDetailsSplit[baseIndex+12]
+                                        else:
+                                            x3 = x2
+                                            y3 = y2
+                                        # TODO What is the third number we sometimes have in the second coordinates bracket?
+                                        if x2 == "*":
+                                            x2 = int(x1)
+                                        else:
+                                            x2 = int(x2)
+                                        if y2 == "*":
+                                            y2 = int(y1)
+                                        else:
+                                            y2 = int(y2)
+                                        if x3 == "*":
+                                            x3 = x2
+                                        else:
+                                            x3 = int(x3)
+                                        if y3 == "*":
+                                            y3 = y2
+                                        else:
+                                            y3 = int(y3)
+                                        # TODO Ternary expressions?
+                                        # TODO WEIGHT? cf net clock
+                                        netLength += (abs(y2 - y1) + abs(x2 - x1) + abs(y3 - y2) + abs(x3 - x2))/UNITS_DISTANCE_MICRONS 
+                                        # if net.name == "clock_module_0.and_dco_dis5.a":
+                                        #     logger.debug("In net clock_module_0.and_dco_dis5.a, netDetailsSplit is: '{}'".format(netDetailsSplit))
+                                        #     logger.debug("baseIndex = {}".format(baseIndex))
+                                        #     logger.debug("netLength = {}".format(netLength))
+                                        #     logger.debug("x1 = {}, y1 = {}, x2 = {}, y2 = {}, x3 = {}, y3 = {}".format(x1, y1, x2, y2, x3, y3))
+                                        #     logger.debug("len(netDetailsSplit) = {} and [baseIndex+10] = '{}'".format(len(netDetailsSplit), [baseIndex+10]))
 
 
-                                netDetails = f.readline().strip()
-                        # netLength = netLength / UNITS_DISTANCE_MICRONS # 10^-4um to um
-                        net.setLength(netLength)
-                        self.totalWireLength += netLength
-                        # logger.debug("{}: {}".format(net.name, netLength))
+                                    netDetails = f.readline().strip()
+                            # netLength = netLength / UNITS_DISTANCE_MICRONS # 10^-4um to um
+                            net.setLength(netLength)
+                            self.totalWireLength += netLength
+                            # logger.debug("{}: {}".format(net.name, netLength))
 
-                        self.addNet(net)
+                            self.addNet(net)
 
-                        wlNetsStr += str(net.name) + " " + str(len(net.gates) + len(net.pins)) + " " + str(net.wl) + "\n"
-                    # end if
+                            wlNetsStr += str(net.name) + " " + str(len(net.gates) + len(net.pins)) + " " + str(net.wl) + "\n"
+                        # end if
 
 
-                line = f.readline()
-            # end while
+                    line = f.readline()
+                # end while
 
         with open("InstancesPerNet.out", 'w') as file:
             file.write(instancesPerNetsStr)
