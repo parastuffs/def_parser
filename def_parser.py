@@ -3,7 +3,7 @@ Usage:
     def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
                     [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl] [--bb=<method>]
     def_parser.py (--help|-h)
-    def_parser.py [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl]
+    def_parser.py [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl] [--bb=<method>]
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, spc,
@@ -326,13 +326,30 @@ class Design:
                 if (len(net.gates) + len(net.pins))> 1:
                     outStr += net.name + " "
                     if net.wl == 0:
-                        print(net.name)
+                        logger.error("Net '{}' has a null length, which is not normal.".format(net.name))
                         sys.exit()
-                    for gate in net.gates.values():
-                        botx = min(botx, gate.x)
-                        boty = min(boty, gate.y)
-                        topx = max(topx, gate.x+gate.width)
-                        topy = max(topy, gate.y+gate.height)
+                    # Bounds computed based on the coordinates of the cell.
+                    if method == "cell":
+                        for gate in net.gates.values():
+                            botx = min(botx, gate.x)
+                            boty = min(boty, gate.y)
+                            topx = max(topx, gate.x+gate.width)
+                            topy = max(topy, gate.y+gate.height)
+                    # Bounds computed based on the coordinates of the pin in the cell.
+                    elif method == "pin":
+                        for gate in net.gates.values():
+                            # Which pin is the net connected to?
+                            gatePinName = net.gatePins[gate.name]
+                            stdCell = macros[gate.stdCell]
+                            gatePin = stdCell.pins[gatePinName]
+                            for port in gatePin.ports:
+                                botx = min(botx, port.x)
+                                boty = min(boty, port.y)
+                                topx = max(topx, port.x+port.width)
+                                topy = max(topy, port.y+port.height)
+                    else:
+                        logger.error("Unknown method '{}' to compute bounding box.".format(method))
+                        sys.exit()
                     for pin in net.pins.values():
                         botx = min(botx, pin.x)
                         boty = min(boty, pin.y)
