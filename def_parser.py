@@ -1,7 +1,7 @@
 """
 Usage:
     def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
-                    [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl]
+                    [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl] [--bb=<method>]
     def_parser.py (--help|-h)
     def_parser.py [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl]
 
@@ -15,6 +15,7 @@ Options:
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     --manhattanwl           Compute nets wirelength as Manhattan distance.
     --mststwl               Compute nets wirelength as MSTST.
+    --bb=<method>           Bounding box computation method: cell or pin.
     --digest                Print design's info and exit.
     -h --help               Print this help
 
@@ -281,9 +282,6 @@ class Design:
         plt.boxplot(gateSize)
         # plt.show()
 
-        logger.info("Evaluate bounding boxes for every net...")
-        self.ComputeBoundingBox()
-
 
 ########   ########   
 ##     ##  ##     ##  
@@ -363,9 +361,10 @@ class Design:
         logger.info("#####################")
 
         plt.figure()
-        plt.title("Net (WL - HPL)/WL")
+        plt.title("Net (WL - HPL)/WL\nBounding box method: {}".format(method))
         plt.boxplot(diff)
         # plt.show()
+        plt.savefig('{}_{}_{}_HPLvsExactWL.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), self.name, method))
         logger.info("--- BB stats over (WL - HPL)/WL ---")
         logger.info("Mean: {}, median: {}, stdev: {}, min: {}, max: {}".format(statistics.mean(diff), statistics.median(diff), statistics.stdev(diff), min(diff), max(diff)))
 
@@ -2354,6 +2353,7 @@ if __name__ == "__main__":
     DIGESTONLY = False
     manhattanWireLength = False
     mststWireLength = False
+    bbMethod = "cell"
 
     args = docopt(__doc__)
     if args["--design"] == "ldpc":
@@ -2448,6 +2448,9 @@ if __name__ == "__main__":
     if args["--mststwl"]:
         mststWireLength = True
 
+    if args["--bb"]:
+        bbMethod = args["--bb"]
+
     if clustersTargets == 0:
         clusteringMethod = "OneToOne"
 
@@ -2504,6 +2507,8 @@ if __name__ == "__main__":
     design.extractNets(manhattanWireLength, mststWireLength)
     design.sortNets()
     design.Digest()
+    logger.info("Evaluate bounding boxes for every net...")
+    design.ComputeBoundingBox(bbMethod)
     if DIGESTONLY:
         sys.exit()
 
