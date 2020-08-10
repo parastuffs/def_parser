@@ -294,7 +294,7 @@ class Design:
 ########   ########   
 
 
-    def ComputeBoundingBox(self):
+    def ComputeBoundingBox(self, method=""):
         '''
         Compute the bounding box (BB) for each net in the design.
 
@@ -305,44 +305,55 @@ class Design:
         Once the BB is known, its half-perimeter length (HPL) should give an approximation of the actual wire length.
 
         In the following, we assume the coordinates origin is in the bottom left.
+
+        Parameters:
+        -----------
+        method : String
+            "Cell" or "Pin"
         '''
 
 
         diff = list()
         worstCase = float("inf")
         outStr = ""
+        ignoredNets = 0 # count ignored net
 
-        for net in self.nets.values():
-            botx = float("inf")
-            boty = float("inf")
-            topx = 0
-            topy = 0
-            if len(net.gates) > 1:
-                outStr += net.name + " "
-                if net.wl == 0:
-                    print(net.name)
-                    sys.exit()
-                for gate in net.gates.values():
-                    botx = min(botx, gate.x)
-                    boty = min(boty, gate.y)
-                    topx = max(topx, gate.x+gate.width)
-                    topy = max(topy, gate.y+gate.height)
-                for pin in net.pins.values():
-                    botx = min(botx, pin.x)
-                    boty = min(boty, pin.y)
-                    topx = max(topx, pin.x)
-                    topy = max(topy, pin.y)
-                net.bb = [[botx, boty], [topx, topy]]
-                net.computeHPL()
-                outStr += str(net.hpl)
-                outStr += " {} {} {} {}\n".format(botx, boty, topx, topy)
-                newDiff = (net.wl - net.hpl)/net.wl
-                diff.append(newDiff)
-                if worstCase > newDiff:
-                    worstCase = newDiff
-                    worstNet = net
-                # if net.name == "n_43387":
-                #     logger.debug("BB: {}, HPL: {}, wl: {}".format(net.bb, net.hpl, net.wl))
+        with alive_bar(len(self.nets)) as bar:
+            for net in self.nets.values():
+                bar()
+                botx = float("inf")
+                boty = float("inf")
+                topx = 0
+                topy = 0
+                if (len(net.gates) + len(net.pins))> 1:
+                    outStr += net.name + " "
+                    if net.wl == 0:
+                        print(net.name)
+                        sys.exit()
+                    for gate in net.gates.values():
+                        botx = min(botx, gate.x)
+                        boty = min(boty, gate.y)
+                        topx = max(topx, gate.x+gate.width)
+                        topy = max(topy, gate.y+gate.height)
+                    for pin in net.pins.values():
+                        botx = min(botx, pin.x)
+                        boty = min(boty, pin.y)
+                        topx = max(topx, pin.x)
+                        topy = max(topy, pin.y)
+                    net.bb = [[botx, boty], [topx, topy]]
+                    net.computeHPL()
+                    outStr += str(net.hpl)
+                    outStr += " {} {} {} {}\n".format(botx, boty, topx, topy)
+                    newDiff = (net.wl - net.hpl)/net.wl
+                    diff.append(newDiff)
+                    if worstCase > newDiff:
+                        worstCase = newDiff
+                        worstNet = net
+                    # if net.name == "n_43387":
+                    #     logger.debug("BB: {}, HPL: {}, wl: {}".format(net.bb, net.hpl, net.wl))
+                else:
+                    ignoredNets += 1
+        logger.info("{} nets were ignored for lack of connection ({}%)".format(ignoredNets, 100*ignoredNets/len(self.nets)))
         logger.info("### Worst net: '{}'".format(worstNet.name))
         logger.info("## WL-HPL skew: {}".format(worstCase))
         logger.info("## Wire length: {}".format(worstNet.wl))
