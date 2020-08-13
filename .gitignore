@@ -1,4 +1,6 @@
 */__pycache__/
+Classes/__pycache__/
+2018*/
 2019*/
 2020*/
 
@@ -95,3 +97,7 @@ smallboom_inter-cluster-WL_number-of-clusters.xlsx
 spc_net_wl.csv
 test_dir/
 tmp/
+
+LDPC-2020*
+*.png
+spc_NoBuff/
