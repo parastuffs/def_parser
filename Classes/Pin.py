@@ -4,6 +4,8 @@ class Pin:
         self.x = 0
         self.y = 0
         self.net = None # Net object
+        self.placed = True # Has the pin been placed by the PnR?
+        self.approximatedAdditionalLength = 0 # If the net was not placed, need to has this value to the net length.
 
     def setX(self, x):
         self.x = x
