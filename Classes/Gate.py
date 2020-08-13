@@ -63,6 +63,9 @@ class Gate:
         """
         Transform the given relative coordinates into absolute coordinates.
 
+        Useful to get the absolute coordinates of a port in a std cell,
+        depending on the orientation of the later.
+
         Parameters:
         -----------
         coordinates : List
