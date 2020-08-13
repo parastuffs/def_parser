@@ -312,7 +312,8 @@ class Design:
 
 
         diff = list()
-        worstCase = float("inf")
+        mostOverestimated = float("inf")
+        mostUnderestimated = -1*float("inf")
         outStr = ""
         ignoredNets = 0 # count ignored net
 
@@ -343,10 +344,10 @@ class Design:
                             stdCell = macros[gate.stdCell]
                             gatePin = stdCell.pins[gatePinName]
                             for port in gatePin.ports:
-                                botx = min(botx, port.x)
-                                boty = min(boty, port.y)
-                                topx = max(topx, port.x+port.width)
-                                topy = max(topy, port.y+port.height)
+                                botx = min(botx, gate.absoluteCoordinate([port.x,port.y])[0])
+                                boty = min(boty, gate.absoluteCoordinate([port.x,port.y])[1])
+                                topx = max(topx, gate.absoluteCoordinate([port.x+port.width,port.y+port.height])[0])
+                                topy = max(topy, gate.absoluteCoordinate([port.x+port.width,port.y+port.height])[1])
                     else:
                         logger.error("Unknown method '{}' to compute bounding box.".format(method))
                         sys.exit()
@@ -361,20 +362,32 @@ class Design:
                     outStr += " {} {} {} {}\n".format(botx, boty, topx, topy)
                     newDiff = (net.wl - net.hpl)/net.wl
                     diff.append(newDiff)
-                    if worstCase > newDiff:
-                        worstCase = newDiff
-                        worstNet = net
+                    # Look for the minimal newDiff, meaning an overestimated HPL (HPL>WL)
+                    if mostOverestimated > newDiff:
+                        mostOverestimated = newDiff
+                        mostOverestimatedNet = net
+                    # Look for the maximal newDiff, meaning an underestimated HPL (HPL<WL)
+                    if mostUnderestimated < newDiff:
+                        mostUnderestimated = newDiff
+                        mostUnderestimatedNet = net
                     # if net.name == "n_43387":
                     #     logger.debug("BB: {}, HPL: {}, wl: {}".format(net.bb, net.hpl, net.wl))
                 else:
                     ignoredNets += 1
         logger.info("{} nets were ignored for lack of connection ({}%)".format(ignoredNets, 100*ignoredNets/len(self.nets)))
-        logger.info("### Worst net: '{}'".format(worstNet.name))
-        logger.info("## WL-HPL skew: {}".format(worstCase))
-        logger.info("## Wire length: {}".format(worstNet.wl))
-        logger.info("## Wire HPL: {}".format(worstNet.hpl))
-        logger.info("## Wire Bounding box: {}".format(worstNet.bb))
-        logger.info("## Number of gates: {}".format(len(worstNet.gates)))
+        logger.info("### Most overstimated HPL: '{}'".format(mostOverestimatedNet.name))
+        logger.info("## WL-HPL skew: {}".format(mostOverestimated))
+        logger.info("## Wire length: {}".format(mostOverestimatedNet.wl))
+        logger.info("## Wire HPL: {}".format(mostOverestimatedNet.hpl))
+        logger.info("## Wire Bounding box: {}".format(mostOverestimatedNet.bb))
+        logger.info("## Number of gates: {}".format(len(mostOverestimatedNet.gates)))
+        logger.info("#####################")
+        logger.info("### Most undersetimated HPL: '{}'".format(mostUnderestimatedNet.name))
+        logger.info("## WL-HPL skew: {}".format(mostUnderestimated))
+        logger.info("## Wire length: {}".format(mostUnderestimatedNet.wl))
+        logger.info("## Wire HPL: {}".format(mostUnderestimatedNet.hpl))
+        logger.info("## Wire Bounding box: {}".format(mostUnderestimatedNet.bb))
+        logger.info("## Number of gates: {}".format(len(mostUnderestimatedNet.gates)))
         logger.info("#####################")
 
         plt.figure()
@@ -624,6 +637,7 @@ class Design:
 
         inPins = False
         endOfPins = False
+        warningCoord = False
 
         with open(deffile, 'r') as f:
             line = f.readline()
@@ -653,6 +667,8 @@ class Design:
                         pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
                     else:
                         # Could not find a 'placed' instruction for the pin.
+                        warningCoord = True
+                        pin.placed = False
                         pin.setX(0)
                         pin.setY(0)
 
@@ -662,6 +678,70 @@ class Design:
                     line = nextLine
                 else:
                     line = f.readline()
+            logger.warning("Some pins were not placed by the PnR tool.\nThose were assigned default (0,0) coordinates.\n Approximate coordinates will be guessed from the connected gate through a closest-edge projection.")
+
+
+
+    def setPinCoordinates(self, net):
+        """
+        The Pin in this Net has default (0,0) coordinates.
+        This happens when the PnR tool did not place the pins. In that case, the net with only a pin and a standard cell would have a null length has it could not be routed. This is problematic has we lose information.
+        We need to assign this Pin some so that we can circumvent the problem.
+
+        The way it's done is by identifying the coordinates of all the connecting points (ports of the pin of the standard cells connected) and find the one closest to an edge of the design.
+
+        We assume the net is connected to only one Pin.
+
+        Parameters
+        ----------
+        net: Net
+        """
+        closestCoord = float('inf')
+        tempCoord = [0,0]
+
+        if len(net.pins) > 1:
+            logger.warning("Warning: '{}' is connected to more than one Pin.\nConsidering the first one and ignoring the others.".format(net.name))
+        pin = list(net.pins.values())[0]
+
+        # logger.debug("Net: '{}', {} gates".format(net.name, len(net.gates)))
+
+        for gate in net.gates.values():
+            stdCellName = gate.stdCell
+            gatePin = macros[stdCellName].pins[net.gatePins[gate.name]]
+            # logger.debug("Gate '{}', stdcell {}, pin {}, {} ports".format(gate.name, stdCellName, gatePin.name, len(gatePin.ports)))
+            for port in gatePin.ports:
+                portCoordinates = gate.absoluteCoordinate(port.center)
+                # logger.debug("Port with coordinates {}".format(portCoordinates))
+                # logger.debug("Begining: closestCoord={}".format(closestCoord))
+
+                # Closer to leftern vertical edge
+                if closestCoord > portCoordinates[0]:
+                    closestCoord = portCoordinates[0]
+                    tempCoord = [0, portCoordinates[1]]
+                # Closer to bottom edge
+                if closestCoord > portCoordinates[1]:
+                    closestCoord = portCoordinates[1]
+                    tempCoord = [portCoordinates[0], 0]
+                # Closer to rightern edge
+                if closestCoord > abs(self.width - portCoordinates[0]):
+                    closestCoord = abs(self.width - portCoordinates[0])
+                    tempCoord = [self.width, portCoordinates[1]]
+                # Closer to top edge
+                if closestCoord > abs(self.height - portCoordinates[1]):
+                    closestCoord = abs(self.height - portCoordinates[1])
+                    tempCoord = [portCoordinates[0], self.height]
+                # logger.debug("Ending: closestCoord={}".format(closestCoord))
+        if closestCoord == float('inf'):
+            logger.error("Did not find approximate pin coordinates for net '{}', pin '{}'".format(net.name, pin.name))
+        # else:
+        #     logger.debug("Everything is fine for '{}', closestCoord={}".format(net.name, closestCoord))
+        pin.setX(tempCoord[0])
+        pin.setY(tempCoord[1])
+
+        # logger.debug("Net '{}', pin '{}', extra length {}".format(net.name, pin.name, closestCoord))
+        pin.approximatedAdditionalLength = closestCoord
+
+
 
 
 
@@ -689,6 +769,7 @@ class Design:
         cellCoordStr = "" # String containing the content of 'CellCoord.out'
 
         netCount = 0
+        pinDefaultCoord = False # Pin has real coordinates. If True, need to call setPinCoordinates(...) to approximate them. This happens when the pin was not placed during the PnR and thus has no "PLACED" statement, hence no coordinates, so defaulted to (0,0).
 
         with open(deffile, 'r') as f:
             with alive_bar(unknown='balls_scrolling') as bar:
@@ -740,6 +821,8 @@ class Design:
                                         net.addPin(pin)
                                         pin.net = net
                                         net.gatePins[pin.name] = "PIN"
+                                        if not pin.placed:
+                                            pinDefaultCoord = True
                                     elif len(gateBlockSplit) > 1:
                                         # This is a gate, add its name to the net
                                         # '1' because we have {(, <gate_name>, <gate_port>}
@@ -762,6 +845,10 @@ class Design:
                                                         str(gate.x) + ', ' + str(gate.y) + "\n"
 
                                 netDetails = f.readline().strip()
+                            # If Pin was not placed during PnR and is connected to something else...
+                            if pinDefaultCoord and len(net.gates) > 0:
+                                pinDefaultCoord = False
+                                self.setPinCoordinates(net)
 
                             netLength = 0
 
@@ -995,6 +1082,9 @@ class Design:
 
                                     netDetails = f.readline().strip()
                             # netLength = netLength / UNITS_DISTANCE_MICRONS # 10^-4um to um
+                            if len(net.pins) > 0:
+                                # logger.debug("'{}' needs to add pin length of {}".format(net.name, list(net.pins.values())[0].approximatedAdditionalLength))
+                                netLength += list(net.pins.values())[0].approximatedAdditionalLength
                             net.setLength(netLength)
                             self.totalWireLength += netLength
                             # logger.debug("{}: {}".format(net.name, netLength))
@@ -2281,6 +2371,31 @@ def extractStdCells(tech, memory=False):
                                 # But most lines are like: RECT 0.1770 0.1200 0.2010 0.1360 ;
                                 port = Port(x=float(line.split()[1]), y=float(line.split()[2]), width=float(line.split()[3])-float(line.split()[1]), height=float(line.split()[4])-float(line.split()[2]))
                             pin.addPort(port)
+                        elif inPin and 'POLYGON' in line:
+                            # Another way to define the geometry of a PORT
+                            #
+                            # "Specifies a sequence of at least three points to generate a
+                            # polygon geometry. Every polygon edge must be parallel to the
+                            # x or y axis, or at a 45-degree angle. Each POLYGON statement
+                            # defines a polygon generated by connecting each successive
+                            # point, and then by connecting the first and last points."
+                            # LEF/DEF 5.8 Language Reference, p.133
+                            # I don't want to handle polygons, so find a rectangle overlaping
+                            # said polygon. Less accurate, but good enough.
+                            #
+                            # The line should look like:
+                            # POLYGON 0.6 1.29 0.465 1.29 0.465 1.17 0.19 1.17 0.19 1.265 0.07 1.265 0.07 1.185 0.11 1.185 0.11 1.09 0.545 1.09 0.545 1.21 0.6 1.21 ;
+
+                            lineSplit = line.split()
+                            # Delete 'MASK' and the following character (see above)
+                            if 'MASK' in line:
+                                del lineSplit[lineSplit.index('MASK'):lineSplit.index('MASK')+2]
+
+                            port = Port(x=float(min(lineSplit[1:-1:2])),
+                                        y=float(min(lineSplit[2::2])),
+                                        width=float(max(lineSplit[1:-1:2]))-float(min(lineSplit[1:-1:2])),
+                                        height=float(max(lineSplit[2::2]))-float(min(lineSplit[2::2])))
+                            pin.addPort(port)
 
                         elif "END" in line and macroName in line:
                             inMacro = False
@@ -2370,7 +2485,7 @@ if __name__ == "__main__":
     DIGESTONLY = False
     manhattanWireLength = False
     mststWireLength = False
-    bbMethod = "cell"
+    bbMethod = "pin"
 
     args = docopt(__doc__)
     if args["--design"] == "ldpc":
