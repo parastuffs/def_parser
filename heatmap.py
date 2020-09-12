@@ -1,10 +1,11 @@
 """
 Usage:
-    heatmap.py (-d <dir>)
+    heatmap.py (-d <dir>) [-c <dir>]
     heatmap.py (--help|-h)
 
 Options:
     -d <path>   Path to design folder
+    -c <dir>    Sub dir from <path> to a folder containing ClustersInstances.out
     -h --help   Print this help
 """
 
@@ -73,7 +74,7 @@ def loadDesign():
             maxY = max(maxY, cells[cellName][3])
     return cells, maxX, maxY
 
-def generateHeatmap(cells, maxX, maxY, dimension=500):
+def generateHeatmap(cells, maxX, maxY, dimension=300):
     """
     Parameters
     ----------
@@ -128,14 +129,60 @@ def generateHeatmap(cells, maxX, maxY, dimension=500):
     plt.savefig('{}_{}_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])))
     plt.show()
 
+def clororizeClusters(clustDir, cells, dimension=1000):
+    """
+    ClustersInstances.out should be formatted as follow:
+    <cluster ID> <instance 1> <...> <instance n>\n
+
+    Parameters
+    ----------
+    clustDir : str
+        folder containing ClustersInstances.out
+    cells : {cell name : [x1, y1, x2, y2]}
+    """
+    imgW = math.floor(dimension)
+    imgH = int(imgW * (maxY/maxX))
+
+    data = np.zeros(shape=(imgW+2,imgH+2))
+
+    with open(os.path.join(clustDir,"ClustersInstances.out"), 'r') as f:
+        lines = f.readlines()
+        for clusterID, line in enumerate(lines):
+            line = line.strip()
+            for cellName in line.split(' ')[1:]:
+                coordinates = cells[cellName]
+                xl = math.floor(coordinates[0] * imgW / maxX)
+                xu = math.ceil(coordinates[2] * imgW / maxX)
+                yl = math.floor(coordinates[1] * imgH / maxY)
+                yu = math.ceil(coordinates[3] * imgH / maxY)
+
+                for i in range(xl, xu+1):
+                    for j in range(yl, yu+1):
+                        data[i,j] = clusterID + 1 # +1 because I want the value 0 to still mean "there is nothing there"
+
+    x, y = np.mgrid[0:imgW+2:1, 0:imgH+2:1]
+
+    fig, ax = plt.subplots()
+    ax.set_xlim([0,imgW+2])
+    ax.set_ylim([0,imgH+2])
+    c = ax.pcolormesh(x, y, data, cmap='nipy_spectral', shading='auto', vmin=data.min(), vmax=data.max())
+    ax.set_title('Resolution: {}'.format(floor(dimension)))
+    ax.axis('equal')
+    fig.colorbar(c, ax=ax)
+    fig.tight_layout()
+    plt.savefig(os.path.join(clustDir,'{}_{}_clusters_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:]))))
+    plt.show()
 
 
 if __name__ == "__main__":
     output_dir = ""
+    clustDir = None
 
     args = docopt(__doc__)
     if args["-d"]:
         output_dir = args["-d"]
+    if args["-c"]:
+        clustDir = args["-c"]
 
     # Load base config from conf file.
     logging.config.fileConfig('log.conf')
@@ -151,6 +198,9 @@ if __name__ == "__main__":
     logger.debug(args)
 
     os.chdir(output_dir)
+
+    if args["-c"]:
+        clustDir = os.path.join(os.getcwd(),args["-c"])
     
     logger.info("Working inside {}".format(output_dir))
 
@@ -158,41 +208,7 @@ if __name__ == "__main__":
 
     cells, maxX, maxY = loadDesign()
 
-    generateHeatmap(cells, maxX, maxY)
-
-
-    ########
-    ## Image creation
-    ########
-
-    # imgW = 1000
-    # imgH = int(imgW * (design.width/design.height))
-
-    # data = [0] * ((imgW+1) * (imgH+1))
-    # print imgW*imgH
-    # maxPos = 0
-
-    # for key in design.gates:
-    #     position = int(imgW * ((design.gates[key].y / design.height) * imgH) + ((design.gates[key].x / design.width) * imgW))
-    #     # print "------"
-    #     # print design.height
-    #     # print design.width
-    #     # print position
-    #     data[position] += 100
-    #     if data[position] > maxPos:
-    #         maxPos = data[position]
-    #     # if data[position] >= 255:
-    #     #     data[position] = 255
-
-    # for i in range(len(data)):
-    #     data[i] = int((data[i] * 255.0) / maxPos)
-
-
-    # print "Create the image (" + str(imgW) + ", " + str(imgH) + ")"
-    # img = Image.new('L', (imgW+1, imgH+1))
-    # print "Put data"
-    # img.putdata(data)
-    # print "save image"
-    # img.save('out.png')
-    # # print "show image"
-    # # img.show()
+    if clustDir:
+        clororizeClusters(clustDir, cells)
+    else:
+        generateHeatmap(cells, maxX, maxY)
