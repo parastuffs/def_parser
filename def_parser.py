@@ -58,7 +58,7 @@ RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
 
 
 macros = dict() # Filled inside extractStdCells()
-memoryMacros = dict()
+memoryMacros = dict() # {macro name : StdCell}
 # unknownCells = ["SDFQSTKD1", "OAI21D2", "BUFFD4", "OR2XD2", "AOI21D2", "AO22D2", "AO21D2", "AOI22D2", "AOI211D2", "BUFFD8", "OA211D2", "BUFFD16"]
 unknownCells = []
 deffile = ""
@@ -555,6 +555,9 @@ class Design:
                                 try:
                                     gate.setWidth(macros.get(gate.getStdCell()).width) # Get the width from the macros dictionary.
                                     gate.setHeight(macros.get(gate.getStdCell()).height) # Get the height from the macros dictionary.
+                                    if gate.getStdCell() in memoryMacros:
+                                        gate.isMemory = True
+                                        # logger.debug("Cell '{}' is a memory macro of type '{}'".format(gate.name, gate.getStdCell()))
                                 except:
                                     logger.error("Could not find the macro '{}' while parsing the line\n{}\nThis macro might be missing from the LEF file. \nExiting.".format(gate.getStdCell(), line))
                                     sys.exit()
@@ -1912,32 +1915,35 @@ class Design:
             previousDist = float('inf')
             logger.info("Place gates in the closest cluster...")
             with alive_bar(len(self.gates)) as bar:
-                for gk in self.gates:
+                for gate in self.gates.values():
+                    # If the cell is a memory macro, skip it. We will process it later.
+                    if gate.isMemory:
+                        continue
                     disClosest = float('inf')
                     clustClosest = 0
                     for center in enumerate(centers):
-                        disCenter = EuclideanDistance( (self.gates[gk].x, self.gates[gk].y), center[1])
+                        disCenter = EuclideanDistance( (gate.x, gate.y), center[1])
                         if disCenter < disClosest:
                             disClosest = disCenter
                             # The id of the center is the id of the cluster
                             clustClosest = center[0]
-                    self.clusters[clustClosest].addGate(self.gates[gk])
-                    self.gates[gk].addCluster(self.clusters[clustClosest])
+                    self.clusters[clustClosest].addGate(gate)
+                    gate.addCluster(self.clusters[clustClosest])
                     bar()
 
             # Compute center of mass for each cluster
             centerOfMass = list()
             logger.info("Updating center of mass for each cluster...")
             with alive_bar(len(self.clusters)) as bar:
-                for ck in self.clusters:
+                for cluster in self.clusters.values():
                     sumx = 0
                     sumy = 0
-                    if len(self.clusters[ck].gates) > 0:
-                        for gk in self.clusters[ck].gates:
+                    if len(cluster.gates) > 0:
+                        for gate in cluster.gates.values():
                             # This does not need to be optimized. Even if the sum is computed during the cluster formation, we do not gain time. This is fine and more readable.
-                            sumx += self.clusters[ck].gates[gk].x
-                            sumy += self.clusters[ck].gates[gk].y
-                        centerOfMass.append(( sumx/len(self.clusters[ck].gates), sumy/len(self.clusters[ck].gates) ))
+                            sumx += gate.x
+                            sumy += gate.y
+                        centerOfMass.append(( sumx/len(cluster.gates), sumy/len(cluster.gates) ))
                         centerSkewTmp.append(EuclideanDistance(centerOfMass[-1], centers[len(centerOfMass)-1]))
                     else:
                         # If a cluster does not have any gate, get the old value.
@@ -1956,20 +1962,29 @@ class Design:
         plt.savefig('{}_{}_{}_centersSkew_nrun.png'.format(self.name, len(self.clusters), clusteringMethod))
         # plt.show()
 
+        logger.info("Considering extra clusters for memory macros...")
+        for gate in self.gates.values():
+            if gate.isMemory:
+                cluster =  Cluster(0, 0, 0, [0, 0], len(self.clusters))
+                cluster.addGate(gate)
+                self.clusters[cluster.id] = cluster
+                gate.addCluster(self.clusters[clustClosest])
+
+
         # Set clusters area
-        for ck in self.clusters:
+        for cluster in self.clusters.values():
             area = 0
-            for gk in self.clusters[ck].gates:
-                area += self.clusters[ck].gates[gk].getArea()
-            self.clusters[ck].setGateArea(area)
-            self.clusters[ck].area= area
+            for gate in cluster.gates.values():
+                area += gate.getArea()
+            cluster.setGateArea(area)
+            cluster.area= area
 
         # Create ClustersInstances.out
         clusterInstancesStr = ""
-        for ck in self.clusters:
-            clusterInstancesStr += str(self.clusters[ck].id)
-            for gk in self.clusters[ck].gates:
-                clusterInstancesStr += " " + str(self.clusters[ck].gates[gk].name)
+        for cluster in self.clusters.values():
+            clusterInstancesStr += str(cluster.id)
+            for gate in cluster.gates.values():
+                clusterInstancesStr += " " + str(gate.name)
             clusterInstancesStr += "\n"
 
         with open("ClustersInstances.out", 'w') as f:
@@ -1979,8 +1994,8 @@ class Design:
 
         # Create output file
         clustersOutStr = ""
-        for ck in self.clusters:
-            clustersOutStr += str(self.clusters[ck].id) + "\n"
+        for cluster in self.clusters.values():
+            clustersOutStr += str(cluster.id) + "\n"
 
         logger.debug("Dumping Clusters.out")
         with open("Clusters.out", 'w') as file:
@@ -2346,6 +2361,8 @@ def extractStdCells(tech, memory=False):
                             macro.setHeight(macroHeight)
                             # macros[macroName] = [macroWidth, macroHeight]
                             macros[macroName] = macro
+                            if memory:
+                                memoryMacros[macroName] = macro
                             areaFound = True
                         elif 'PIN ' in line:
                             pin = GatePin(line.split()[1])
@@ -2408,6 +2425,12 @@ def extractStdCells(tech, memory=False):
                         line = f.readline()
 
                     line = f.readline()
+    if memory:
+        with open("MemoryMacros.out", 'w') as f:
+            str = ""
+            for macro in memoryMacros.keys():
+                str += "{}\n".format(macro)
+            f.write(str)
 
     # print macros
     # TODO check that the StdCell objects in the macro dictionary are still there. Check that they are not nulled after exiting the loop.
