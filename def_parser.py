@@ -2293,7 +2293,7 @@ class Design:
 ##     ##      ##      ##    ##   ##     ##  ##         ##         ##         
  #######       ##      ######      #######   #########  #########  #########  
 
-def extractStdCells(tech, memory=False):
+def extractStdCells(tech, memory=False, outDir=""):
     """
     @tech: 7nm|45nm|gsclib045
 
@@ -2426,7 +2426,7 @@ def extractStdCells(tech, memory=False):
 
                     line = f.readline()
     if memory:
-        with open("MemoryMacros.out", 'w') as f:
+        with open(os.path.join(outDir,"MemoryMacros.out"), 'w') as f:
             str = ""
             for macro in memoryMacros.keys():
                 str += "{}\n".format(macro)
@@ -2642,7 +2642,7 @@ if __name__ == "__main__":
     if MEMORY_MACROS:
         # Old SPC, not supported anymore.
     #     extractMemoryMacros(14,4)
-        extractStdCells(stdCellsTech, True)
+        extractStdCells(stdCellsTech, True, output_dir)
     # exit()
 
     deffile = os.path.join(rootDir, deffile)
