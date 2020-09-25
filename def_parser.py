@@ -209,6 +209,7 @@ class Design:
         self.RentParam = 0
         self.agw = 0 # Average gate width
         self.name = ""
+        self.metalLayers = set() # Set of layers name, as in DEF file.
 
     def Reset(self):
         '''
@@ -281,6 +282,35 @@ class Design:
         plt.title("Standard cells sizes")
         plt.boxplot(gateSize)
         # plt.show()
+
+        logger.info("Metal layers: {}".format(self.metalLayers))
+
+        # Distribution of the number of used metal layers per net
+        logger.info("Computing distribution of metal layers usage...")
+        metalLayersDict = {}
+        heights = [0] * len(self.metalLayers)
+        for net in self.nets.values():
+            numberOfML = len(net.metalLayers)
+            heights[numberOfML] += 1
+            if numberOfML in metalLayersDict.keys():
+                metalLayersDict[numberOfML].append(net.name)
+            else:
+                metalLayersDict[numberOfML] = [net.name]
+        outStr = ""
+        for l in sorted(metalLayersDict.keys()):
+            outStr += "{}".format(l)
+            for net in metalLayersDict[l]:
+                outStr += ", {}".format(net)
+            outStr += "\n"
+        with open("netMetalLayers.out", 'w') as f:
+            f.write(outStr)
+
+        plt.figure()
+        plt.title("Metal layers used per net ({})".format(self.name))
+        plt.bar([i for i in range(len(self.metalLayers))], heights, tick_label=[i for i in range(len(self.metalLayers))])
+        plt.savefig('{}_{}_metal-layers.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), self.name))
+        # plt.show()
+
 
 
 ########   ########   
@@ -758,7 +788,15 @@ class Design:
 
     def extractNets(self, manhattanWireLength=False, mststWireLength=False):
         """
+        *Extract net routes:
         lefdefref v5.8, p.261.
+
+        *Extract metal layers names:
+        lefdefref v5.8, p.336.
+        Lines should look like 
+            TRACKS X 450 DO 2312 STEP 720 LAYER PRM10 ;
+        or
+            TRACKS Y 320 DO 5917 STEP 480 MASK 1 LAYER PRM4 ;
         """
         logger.debug("Reading the def to extract nets.")
 
@@ -779,6 +817,16 @@ class Design:
                 line = f.readline()
                 while line:
                     bar()
+
+                    # Extract Metal Layer name
+                    if 'TRACKS' in line:
+                        layerName = ""
+                        if line.split(' ')[7] == "MASK":
+                            layerName = line.split(' ')[10]
+                        else:
+                            layerName = line.split(' ')[8]
+                        self.metalLayers.add(layerName)
+
 
                     if 'END NETS' in line:
                         endOfNets = True
@@ -989,6 +1037,7 @@ class Design:
                             # Actual wirelength
                             #####
                             else:
+                                net.isRouted = 1
 
                                 while not ';' in netDetails:
                                     # Now, we are looking at the detailed route of the net.
@@ -1081,6 +1130,18 @@ class Design:
                                         #     logger.debug("netLength = {}".format(netLength))
                                         #     logger.debug("x1 = {}, y1 = {}, x2 = {}, y2 = {}, x3 = {}, y3 = {}".format(x1, y1, x2, y2, x3, y3))
                                         #     logger.debug("len(netDetailsSplit) = {} and [baseIndex+10] = '{}'".format(len(netDetailsSplit), [baseIndex+10]))
+
+                                        # Extract metal name of this trace
+                                        layerName = ""
+                                        try:
+                                            layerName = netDetailsSplit[netDetailsSplit.index("NEW")+1]
+                                        except ValueError:
+                                            try:
+                                                layerName = netDetailsSplit[netDetailsSplit.index("ROUTED")+1]
+                                            except:
+                                                logger.error("{}".format(netDetailsSplit))
+                                                sys.exit()
+                                        net.metalLayers.add(layerName)
 
 
                                     netDetails = f.readline().strip()
