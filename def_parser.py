@@ -9,8 +9,8 @@ Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, spc,
                             spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
-                            Naive_Geometric, hierarchical-geometric, kmeans-geometric 
-                            or kmeans-random. [default: random]
+                            Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random
+                            or metal. [default: random]
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     --manhattanwl           Compute nets wirelength as Manhattan distance.
@@ -2065,6 +2065,140 @@ class Design:
 
 
 
+##       ##  #########  ##########     ###     ##         
+###     ###  ##             ##        ## ##    ##         
+## ## ## ##  ##             ##       ##   ##   ##         
+##  ###  ##  ######         ##      ##     ##  ##         
+##       ##  ##             ##      #########  ##         
+##       ##  ##             ##      ##     ##  ##         
+##       ##  #########      ##      ##     ##  #########  
+
+
+    def metalClustering(self, layersLimit):
+        """
+        Clustering based on the metal layer utilization of each net.
+        If a net uses no more than layersLimit layers, group all its connected gates into
+        a cluster. If a gate is already part of a cluster, merge them.
+
+        Parameters
+        ----------
+        layersLimit : int
+        """
+
+        logger.info("Creating clusters based on Metal Layer, limit: {}.".format(layersLimit))
+
+        # Reset
+        for gate in self.gates.values():
+            gate.cluster = None
+        self.clusters = dict()
+        clusterMaxID = 0
+
+        with alive_bar(len(self.nets)) as bar:
+            for net in self.nets.values():
+                bar()
+                # logger.debualcg("Net: {}".format(net.name))
+                if len(net.metalLayers) <= layersLimit:
+                    clusterID = None
+                    cluster = None
+                    # First run to check if a gate is already in a cluster
+                    for gate in net.gates.values():
+                        if gate.cluster != None:
+                            clusterID = gate.cluster.id
+                            cluster = gate.cluster
+                            # logger.debug("Found an existing cluster: {}".format(clusterID))
+                            # No need to check further, one result is enough
+                            break
+                    # If did no find a cluster, create a new one
+                    if clusterID == None:
+                        # logger.debug("Did not find a cluster, creating a new one with ID {}".format(len(self.clusters)))
+                        cluster = Cluster(0, 0, 0, [0, 0], clusterMaxID)
+                        clusterID = cluster.id
+                        clusterMaxID += 1
+                    # Second run, set the cluster for each gate
+                    updatedGates = list()
+                    for gate in net.gates.values():
+                        # logger.debug("Evaluating gate {}".format(gate.name))
+                        # If the game has not been updated with a new cluster yet AND skip memory macros
+                        if gate.name not in updatedGates and not gate.isMemory:
+                            # logger.debug("Not upated yet...")
+                            updatedGates.append(gate.name)
+                            # If the gate does not have a cluster yet, assign it the new one.
+                            if gate.cluster == None:
+                                # logger.debug("Gate {} does not have a cluster, assigning to {}".format(gate.name, cluster.id))
+                                gate.cluster = cluster
+                                cluster.gates[gate.name] = gate
+                            else:
+                                oldClusterID = gate.cluster.id
+                                # logger.debug("Gate {} in in cluster {}".format(gate.name, oldClusterID))
+                                # If the gate is not already part of the cluster, merge its cluster into the new one
+                                if oldClusterID != clusterID:
+                                    # logger.debug("This is another cluster, updating then deleting...")
+                                    # Update the cluster info in all the gate of the old cluster
+                                    for subgate in self.clusters[oldClusterID].gates.values():
+                                        updatedGates.append(subgate.name)
+                                        subgate.cluster = cluster
+                                        cluster.gates[subgate.name] = subgate
+                                    del self.clusters[oldClusterID]
+                                # Otherwise do nothing. If the gate is already in the cluster, everything is good.
+                                else:
+                                    continue
+
+                    # Add the cluster to the design's list
+                    self.clusters[cluster.id] = cluster
+
+                    # # Update the cluster's gate area
+                    # clusterGateArea = 0
+                    # for gate in cluster.gates.values():
+                    #     clusterGateArea += gate.getArea()
+                    # cluster.setGateArea(clusterGateArea)
+                    # cluster.area = clusterGateArea
+
+        # Run through all gates.
+        for gate in self.gates.values():
+            # Create individual clusters for orphaned gates
+            if gate.cluster == None:
+                cluster = Cluster(0,0,0,[0,0],clusterMaxID)
+                clusterMaxID += 1
+                # cluster.area = gate.getArea()
+                # cluster.setGateArea(gate.getArea())
+                cluster.gates[gate.name] = gate
+                gate.cluster = cluster
+                self.clusters[clusterMaxID] = cluster
+
+        # Update cluster IDs and areas
+        clusters = self.clusters.values()
+        self.clusters = dict()
+        for i, cluster in enumerate(clusters):
+            cluster.id = i
+            self.clusters[i] = cluster
+            gateArea = 0
+            for gate in cluster.gates.values():
+                gateArea += gate.getArea()
+            cluster.area = gateArea
+            cluster.setGateArea(gateArea)
+
+
+
+        # Create ClustersInstances.out
+        clusterInstancesStr = ""
+        for cluster in self.clusters.values():
+            clusterInstancesStr += str(cluster.id)
+            for gate in cluster.gates.values():
+                clusterInstancesStr += " " + str(gate.name)
+            clusterInstancesStr += "\n"
+
+        with open("ClustersInstances.out", 'w') as f:
+            f.write(clusterInstancesStr)
+
+        # Create output file
+        clustersOutStr = ""
+        for cluster in self.clusters.values():
+            clustersOutStr += str(cluster.id) + "\n"
+
+        logger.debug("Dumping Clusters.out")
+        with open("Clusters.out", 'w') as file:
+            file.write(clustersOutStr)
+
 
 
 
@@ -2771,6 +2905,9 @@ if __name__ == "__main__":
                     design.clusterConnectivity()
             elif "kmeans" in clusteringMethod:
                 design.kmeans(clustersTarget, clusteringMethod)
+                design.clusterConnectivity()
+            elif clusteringMethod == "metal":
+                design.metalClustering(clustersTarget)
                 design.clusterConnectivity()
         design.clusterArea()
 
