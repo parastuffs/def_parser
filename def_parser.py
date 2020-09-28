@@ -2234,6 +2234,9 @@ class Design:
 
         clustersTotal = len(self.clusters)
 
+        interNets = dict() # Net spanning several clusters {Net.name : Net}
+        intraNets = dict() # Net fully contained in a single cluster {Net.name : Net}
+
         for ck in self.clusters:
             cluster = self.clusters[ck]
             connectivity[cluster.id] = []
@@ -2258,6 +2261,7 @@ class Design:
                                     if spaningNetsUnique.get(netKey) == None:
                                         # If the net is not registered as spaning over several clusters, add it.
                                         spaningNetsUnique[netKey] = net
+                                        interNets[net.name] = net
 
                         else:
                             if net.gates[subkey].cluster.id != cluster.id:
@@ -2271,6 +2275,7 @@ class Design:
                                             if spaningNetsUnique.get(netKey) == None:
                                                 # If the net is not registered as spaning over several clusters, add it.
                                                 spaningNetsUnique[netKey] = net
+                                                interNets[net.name] = net
 
         """
         This a very primitive connectivity metric.
@@ -2393,6 +2398,7 @@ class Design:
                 # It's more efficient to check here for clusterID rather than len(net.gates) for every net.
                 # print "(" + str(net.name) + ") inside 'if not discardNet:', clusterID = " + str(clusterID)
                 connectivityIntra[clusterID].append(net.name)
+                intraNets[net.name] = net
 
 
 
@@ -2412,6 +2418,36 @@ class Design:
             self.totalInterClusterWL += spaningNetsUnique[key].wl
         logger.info("Total inter-cluster wirelength: {}, which is {}% of the total wirelength.".format(locale.format_string("%d", self.totalInterClusterWL, grouping=True), self.totalInterClusterWL*100/self.totalWireLength))
         logger.info("Inter-cluster nets: {}, which is {}% of the total amount of nets.".format(len(spaningNetsUnique), len(spaningNetsUnique) * 100 / len(self.nets)))
+
+        logger.info("Analyzing clustering effect on net distribution...")
+        points = list()
+        interNetLength = list()
+        intraNetLength = list()
+        totalNetLength = list() # Length of all the nets, before clustering
+        for net in interNets.values():
+            interNetLength.append(net.wl)
+            totalNetLength.append(net.wl)
+        for net in intraNets.values():
+            intraNetLength.append(net.wl)
+            totalNetLength.append(net.wl)
+        points.append(totalNetLength)
+        points.append(interNetLength)
+        points.append(intraNetLength)
+
+        logger.info("Total nets length, average: {}, median: {}".format(statistics.mean(totalNetLength), statistics.median(totalNetLength)))
+        logger.info("Inter-cluster nets length, average: {}, median: {}".format(statistics.mean(interNetLength), statistics.median(interNetLength)))
+        logger.info("Intra-cluster nets length, average: {}, median: {}".format(statistics.mean(intraNetLength), statistics.median(intraNetLength)))
+
+
+        filenameInfo = "{}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        plt.figure()
+        plt.title("Wirelength distribution of all nets, inter-cluster and intra-cluster")
+        flierprops = dict(marker='o', markersize=1, linestyle='none')
+        plt.boxplot(points, showmeans=True, meanline=True, showfliers=True, flierprops=flierprops)
+        # plt.xticks([i+1 for i in range(len(labels))],labels)
+        plt.savefig('{}_WL-analysis_boxplot.pdf'.format(filenameInfo))
+        # plt.show()
+
 
 
     def clusterArea(self):
