@@ -467,7 +467,7 @@ class Design:
                 # print normaldists
                 pairs = len(gatekeys) * (len(gatekeys)-1) / 2
                 dispersion = sum([1/i for i in normaldists])/pairs
-                self.nets[kn].setdispersion(dispersion)
+                net.setdispersion(dispersion)
 
     def IntergateDistance(self):
         manDists = list()
@@ -669,8 +669,6 @@ class Design:
         logger.debug("Reading the def to extract pins.")
 
         inPins = False
-        endOfPins = False
-        warningCoord = False
 
         with open(deffile, 'r') as f:
             line = f.readline()
@@ -700,7 +698,6 @@ class Design:
                         pin.setY(int(nextLine.split(' ')[nextLine.split(' ').index("PLACED") + 3])/UNITS_DISTANCE_MICRONS)
                     else:
                         # Could not find a 'placed' instruction for the pin.
-                        warningCoord = True
                         pin.placed = False
                         pin.setX(0)
                         pin.setY(0)
@@ -800,8 +797,6 @@ class Design:
         """
         logger.debug("Reading the def to extract nets.")
 
-        endOfNet = False # end of single net
-        endOfNets = False # end of bloc with all the nets
         inNets = False
         instancesPerNetsStr = "" # String containing the content of 'InstancesPerNet.out'.
         netsStr = "" # String containing the content of 'Nets.out'
@@ -829,7 +824,6 @@ class Design:
 
 
                     if 'END NETS' in line:
-                        endOfNets = True
                         break
 
                     if ('NETS' in line and not 'SPECIALNETS' in line) or (inNets):
@@ -1325,7 +1319,6 @@ class Design:
         clusterInstancesStr = "" # String of list of cluster instances to dump into ClustersInstances.out
         for ck in self.clusters:
             cluster = self.clusters[ck]
-            i = 0
             gateKeysNotPlaced = [] # Keys of the gates that have not be placed into a cluster yet.
             clusterGateArea = 0 # Cumulated area of the gates in the cluster
             clusterInstancesStr += str(cluster.id)
@@ -1702,15 +1695,15 @@ class Design:
             # For each net, get the gates and check if they all are in the same cluster.
             netLengths = []
             netNames = []
-            for i, cluster in self.clusters.items():
+            for cluster in self.clusters.values():
                 mainClusterID = cluster.id
-                for j, gate in cluster.gates.items():
-                    for k, net in gate.nets.items():
-                        for l, subgate in net.gates.items():
+                for gate in cluster.gates.values():
+                    for net in gate.nets.values():
+                        for subgate in net.gates.values():
                             if subgate.cluster.id != mainClusterID:
                                 try:
                                     netNames.index(net.name)
-                                except ValueError as e:
+                                except ValueError:
                                     # The net is not yet in the list
                                     netLengths.append(net.wl)
                                     netNames.append(net.name)
@@ -1971,9 +1964,6 @@ class Design:
             ##############
 
             # Place gates in closest cluster
-            minX = 0
-            minY = 0
-            previousDist = float('inf')
             logger.info("Place gates in the closest cluster...")
             with alive_bar(len(self.gates)) as bar:
                 for gate in self.gates.values():
@@ -2242,10 +2232,8 @@ class Design:
             connectivity[cluster.id] = []
             connectivityUniqueNet[cluster.id] = []
             clusterNetSet[cluster.id] = set()
-            clusterGateArea = 0 # Cumulated area of the gates in the cluster
             # print "Source cluster: " + str(cluster.id)
             for key in cluster.gates:
-                gateName = cluster.gates[key].name
                 for netKey in cluster.gates[key].nets:
                     net = cluster.gates[key].nets[netKey]
                     for subkey in net.gates:
@@ -2563,17 +2551,12 @@ def extractStdCells(tech, memory=False, outDir=""):
     
     inMacro = False #Macros begin with "MACRO macro_name" and end with "END macro_name"
     macroName = ""
-    areaFound = False
     macroWidth = 0
     macroHeight = 0
     # macros = dict()
     pin = None
-    newPort = False
     inPin = False
 
-    # TODO cleanup
-    # Useless:
-    # - areaFound
 
     for file in os.listdir(lefdir):
         if file.endswith(".lef"):
@@ -2586,7 +2569,6 @@ def extractStdCells(tech, memory=False, outDir=""):
                         inMacro = True
                         macroName = line.split()[1] # May need to 'line = line.strip("\n")'
                         # print macroName
-                        areaFound = False
                         macro = StdCell(macroName)
                         # logger.debug("parsing macro '{}'".format(macroName))
 
@@ -2603,7 +2585,6 @@ def extractStdCells(tech, memory=False, outDir=""):
                             macros[macroName] = macro
                             if memory:
                                 memoryMacros[macroName] = macro
-                            areaFound = True
                         elif 'PIN ' in line:
                             pin = GatePin(line.split()[1])
                             inPin = True
@@ -2614,8 +2595,6 @@ def extractStdCells(tech, memory=False, outDir=""):
                             inPin = False
                         elif 'DIRECTION' in line:
                             pin.setDirection(line.split()[1])
-                        elif 'PORT' in line:
-                            newPort = True
                         elif inPin and 'RECT' in line:
                             # Geometry of a PORT from a PIN
                             # Needs to make sure it's inside a PIN block,
@@ -2657,11 +2636,6 @@ def extractStdCells(tech, memory=False, outDir=""):
                         elif "END" in line and macroName in line:
                             inMacro = False
 
-                        # if inMacro and not areaFound:
-                        # if inMacro and not areaFound:
-                            # We are not about to leave the loop
-                            # TODO there must be a non dirty way to do this.
-                            # line = f.readline()
                         line = f.readline()
 
                     line = f.readline()
