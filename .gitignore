@@ -85,7 +85,7 @@ lef.zip
 lef/
 msp430/
 old/
-out
+out*
 out (3rd copy).png
 out (another copy).png
 out (copy).png
