@@ -2424,12 +2424,16 @@ class Design:
         interNetLength = list()
         intraNetLength = list()
         totalNetLength = list() # Length of all the nets, before clustering
+        interNetStr = ""
+        intraNetStr = ""
         for net in interNets.values():
             interNetLength.append(net.wl)
             totalNetLength.append(net.wl)
+            interNetStr += "{}, {}\n".format(net.name, net.wl)
         for net in intraNets.values():
             intraNetLength.append(net.wl)
             totalNetLength.append(net.wl)
+            intraNetStr += "{}, {}\n".format(net.name, net.wl)
         points.append(totalNetLength)
         points.append(interNetLength)
         points.append(intraNetLength)
@@ -2437,6 +2441,11 @@ class Design:
         logger.info("Total nets length, average: {}, median: {}".format(statistics.mean(totalNetLength), statistics.median(totalNetLength)))
         logger.info("Inter-cluster nets length, average: {}, median: {}".format(statistics.mean(interNetLength), statistics.median(interNetLength)))
         logger.info("Intra-cluster nets length, average: {}, median: {}".format(statistics.mean(intraNetLength), statistics.median(intraNetLength)))
+
+        with open("inter-cluster_nets_wl.out", 'w') as f:
+            f.write(interNetStr)
+        with open("intra-cluster_nets_wl.out", 'w') as f:
+            f.write(intraNetStr)
 
 
         filenameInfo = "{}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))

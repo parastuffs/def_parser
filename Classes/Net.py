@@ -14,6 +14,8 @@ class Net:
         self.hpl3d = 0 # HPL after 3D partitioning
         self.is3d = 0 # 1 if 3D net
         self.layer = 0 # 0 or 1, irrelevant if is3d == 1.
+        self.metalLayers = set() # Set of metal layers names through which the net is routed.
+        self.isRouted = 0 # 1 if the net is exactly routed.
 
     def addGate(self, gate):
         """

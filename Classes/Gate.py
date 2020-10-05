@@ -13,6 +13,7 @@ class Gate:
         self.silouhette = 0 # (cohesion - separation)/max(cohesion, separation)
         self.layer = 0 # 3D layer
         self.orientation = "" # orientation setting the origin to place the ports: N (bottom left), S (top right), FN (bottom right) or FS (top left)
+        self.isMemory = False # Is this cell a memory macro?
 
     def setX(self, x):
         self.x = x

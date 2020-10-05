@@ -25,10 +25,12 @@ import math
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import datetime
 
 
 def Evaluate3Dwl(wlFile, netCutFile):
     '''
+    wlFile should end with something like '2020-07-02_15-00-10_ldpc-2020_kmeans-geometric/WLnets.out'
 
     Parameters
     ----------
@@ -47,17 +49,21 @@ def Evaluate3Dwl(wlFile, netCutFile):
     netsPins = dict() # {Net name : net pins}
     nets3DPins = dict() # {Net name : net pins}
     pinValues = set()
+    filenameInfo = "{}_{}_{}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), "_".join(wlFile.split(os.sep)[-2].split('_')[2:]), netCutFile.split(os.sep)[-1].split(".txt")[0])
     with open(wlFile, 'r') as f:
         lines = f.readlines()
     for line in lines[1:]:
-        netsWL[line.split(' ')[0]] = float(line.split(' ')[2])
-        netsPins[line.split(' ')[0]] = int(line.split(' ')[1])
+        netName = line.split(' ')[0]
+        netName = netName.replace('\\','')
+        netsWL[netName] = float(line.split(' ')[2])
+        netsPins[netName] = int(line.split(' ')[1])
         pinValues.add(int(line.split(' ')[1]))
 
     with open(netCutFile, 'r') as f:
         lines = f.readlines()
     for line in lines:
         for el in line.split(',')[3:]:
+            el = el.replace('\\', '')
             nets3DWL[el.strip()] = netsWL[el.strip()]
             nets3DPins[el.strip()] = netsPins[el.strip()]
 
@@ -87,9 +93,12 @@ def Evaluate3Dwl(wlFile, netCutFile):
         pins3D[v] += 1
     pins3DPerc = [i/sum(pins3D.values()) for i in pins3D.values()]
 
+    outDir = os.sep.join(netCutFile.split(os.sep)[:-1])
     plt.figure()
     plt.title("Wirelength of (left) 2D nets and (right) cut nets")
     plt.boxplot(points)
+    plt.savefig(os.path.join(outDir,'{}_WL-2Dvs3D_boxplot.pdf'.format(filenameInfo)))
+    print(points)
 
     plt.figure()
     plt.subplot(2,2,1)
@@ -106,7 +115,7 @@ def Evaluate3Dwl(wlFile, netCutFile):
     plt.subplot(2,2,4)
     plt.title("Fanout of 3D cut nets (norm)")
     plt.bar(pinX, pins3DPerc)
-
+    plt.savefig(os.path.join(outDir,'{}_WL-2Dvs3D_histo.pdf'.format(filenameInfo)))
     plt.show()
 
 
