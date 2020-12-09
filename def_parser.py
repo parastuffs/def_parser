@@ -2,11 +2,13 @@
 Usage:
     def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
                     [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl] [--bb=<method>]
+                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH]
     def_parser.py (--help|-h)
-    def_parser.py [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl] [--bb=<method>]
+    def_parser.py   [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl] [--bb=<method>]
+                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH]
 
 Options:
-    --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, spc,
+    --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
                             spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random
@@ -17,6 +19,9 @@ Options:
     --mststwl               Compute nets wirelength as MSTST.
     --bb=<method>           Bounding box computation method: cell or pin.
     --digest                Print design's info and exit.
+    --deffile=DEF           Path to DEF file, superseded by --design.
+    --udm=VALUE             UNITS DISTANCE MICRONS, e.g. 10000, superseded by --design
+    --leftech=TECH         LEF tech used, e.g. 7nm, superseded by --design
     -h --help               Print this help
 
 Note:
@@ -709,6 +714,30 @@ class Design:
                 else:
                     line = f.readline()
             logger.warning("Some pins were not placed by the PnR tool.\nThose were assigned default (0,0) coordinates.\n Approximate coordinates will be guessed from the connected gate through a closest-edge projection.")
+
+        logger.info("Looking through the SPECIALNETS for unknown pin coordinates...")
+        inSpecialnets = False
+        with open(deffile, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                if "SPECIALNETS" in line and not inSpecialnets:
+                    inSpecialnets = True
+                elif "END SPECIALNETS" in line:
+                    inSpecialnets = False
+                if inSpecialnets and "- " in line:
+                    specialnet = line.split()[1]
+                    if specialnet in self.pins.keys():
+                        # In this instance, we have pins that have not been placed.
+                        # However, we also have specialnets holding the same name and connected to BUMPS.
+                        # Those bumps are actually 3D structures connecting two dies together and is a component
+                        # that has been placed. We can thus reuse that placement information from the bump
+                        # for the pin.
+                        # This is crucial to have a more accurate wire-length estimation for 3D nets connected to such pins.
+                        bumpName = line.split()[3]
+                        self.pins[specialnet].setX(self.gates[bumpName].x)
+                        self.pins[specialnet].setY(self.gates[bumpName].y)
+                        self.pins[specialnet].placed = True
+
 
 
 
@@ -2646,6 +2675,12 @@ def extractStdCells(tech, memory=False, outDir=""):
                 str += "{}\n".format(macro)
             f.write(str)
 
+    # Custom macro
+    macro = StdCell("FRONT_BUMP")
+    macro.setWidth(0)
+    macro.setHeight(0)
+    macros["FRONT_BUMP"] = macro
+
     # print macros
     # TODO check that the StdCell objects in the macro dictionary are still there. Check that they are not nulled after exiting the loop.
     # for macro in macros.values():
@@ -2725,6 +2760,14 @@ if __name__ == "__main__":
     bbMethod = "pin"
 
     args = docopt(__doc__)
+
+    if args["--deffile"]:
+        deffile = args["--deffile"]
+    if args["--udm"]:
+        UNITS_DISTANCE_MICRONS = int(args["--udm"])
+    if args["--leftech"]:
+        stdCellsTech = args["--leftech"]
+
     if args["--design"] == "ldpc":
         deffile = "7nm_Jul2017/ldpc.def"
         MEMORY_MACROS = False
@@ -2742,6 +2785,22 @@ if __name__ == "__main__":
         stdCellsTech = "7nm"
     elif args["--design"] == "boomcore":
         deffile = "7nm_Jul2017/BoomCore.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "boomcore-2020-pr-bt":
+        deffile = "BoomCore-2020_post-route/BoomCore_withBuffer.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+        stdCellsTech = "7nm"
+    elif args["--design"] == "boomcore-2020-pr-bl":
+        deffile = "BoomCore-2020_post-route/BoomCore_BoomCore_WithoutBuffer.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "boomcore-2020-pp-bl":
+        deffile = "BoomCorePlaced_NoBuff/BoomCore_PlacedNoBuff.def"
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
@@ -2789,6 +2848,11 @@ if __name__ == "__main__":
         stdCellsTech = "osu018"
     print(stdCellsTech)
 
+    if args["--design"]:
+        designName=args["--design"]
+    else:
+        designName="custom"
+
     if args["--clust-meth"]:
         clusteringMethod = args["--clust-meth"]
 
@@ -2826,7 +2890,7 @@ if __name__ == "__main__":
 
     # Create the directory for the output.
     rootDir = os.getcwd()
-    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args["--design"] + "_" + str(clusteringMethod) + "/"
+    output_dir = rootDir + "/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + designName + "_" + str(clusteringMethod) + "/"
 
     try:
         os.makedirs(output_dir)
@@ -2859,7 +2923,8 @@ if __name__ == "__main__":
         extractStdCells(stdCellsTech, True, output_dir)
     # exit()
 
-    deffile = os.path.join(rootDir, deffile)
+    if not deffile.startswith("/"):
+        deffile = os.path.join(rootDir, deffile)
 
     # Change the working directory to the one created above.
     os.chdir(output_dir)
