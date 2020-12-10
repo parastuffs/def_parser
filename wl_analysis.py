@@ -52,9 +52,13 @@ import datetime
 # WLNET_F = "/home/para/dev/def_parser/2019-07-09_15-07-19_spc_digest/WLnets.out"
 # AGW = 1.42219185541
 
-TITLE = "flipr, post-route, with buffers, in7"
-WLNET_F = "/home/para/dev/def_parser/2019-07-09_15-06-12_flipr_digest/WLnets.out"
-AGW = 0.21603400019
+# TITLE = "flipr, post-route, with buffers, in7"
+# WLNET_F = "/home/para/dev/def_parser/2019-07-09_15-06-12_flipr_digest/WLnets.out"
+# AGW = 0.21603400019
+
+TITLE = "SPC, post-place, 3D MoL, in7"
+WLNET_F = "/home/para/Documents/ULB/phd/experiments/2020-12/spcDATE2020 stats/MoL/WLnets_3D_merged_post-place.out"
+AGW = 0.235
 
 
 if __name__ == "__main__":
@@ -88,9 +92,10 @@ if __name__ == "__main__":
 	plt.ylabel("%")
 	plt.xlabel("Wirelength, normalized on the AGW ({})".format(AGW))
 	plt.yticks(np.arange(0, 101, step=20))
-	plt.axes().yaxis.set_minor_locator(MultipleLocator(5))
+	ax = plt.gca()
+	ax.yaxis.set_minor_locator(MultipleLocator(5))
 	plt.grid(True, which='both')
 	os.chdir("/home/para/Documents/ULB/phd/experiments/2020-12/")
-	plt.savefig('{}_wl-distribution_{}.pdf'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), TITLE.replace(", ", "_").replace(" ","-")))
-	plt.savefig('{}_wl-distribution_{}.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), TITLE.replace(", ", "_").replace(" ","-")))
-	# plt.show()
+	# plt.savefig('{}_wl-distribution_{}.pdf'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), TITLE.replace(", ", "_").replace(" ","-")))
+	# plt.savefig('{}_wl-distribution_{}.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), TITLE.replace(", ", "_").replace(" ","-")))
+	plt.show()
