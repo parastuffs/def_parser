@@ -2,16 +2,17 @@
 Usage:
     def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
                     [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl] [--bb=<method>]
-                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH]
+                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
     def_parser.py (--help|-h)
     def_parser.py   [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl] [--bb=<method>]
-                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH]
+                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
-                            spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4, smallboom, armm0 or msp430.
+                            spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4,
+                            smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, mempool-tile-bl.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
-                            Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random
+                            Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random, onetoone.
                             or metal. [default: random]
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
@@ -21,7 +22,8 @@ Options:
     --digest                Print design's info and exit.
     --deffile=DEF           Path to DEF file, superseded by --design.
     --udm=VALUE             UNITS DISTANCE MICRONS, e.g. 10000, superseded by --design
-    --leftech=TECH         LEF tech used, e.g. 7nm, superseded by --design
+    --leftech=TECH          LEF tech used, e.g. 7nm, superseded by --design
+    --segments              Compute the Manhattan segment length of each net into WLnets_wegments.out
     -h --help               Print this help
 
 Note:
@@ -213,8 +215,10 @@ class Design:
         self.RentTerminals = dict()
         self.RentParam = 0
         self.agw = 0 # Average gate width
+        self.mgw = 0 # Minimum gate width
         self.name = ""
         self.metalLayers = set() # Set of layers name, as in DEF file.
+        self.netSegments = dict() # {Net name : Net}
 
     def Reset(self):
         '''
@@ -241,6 +245,13 @@ class Design:
         logger.info("Rent's 't' parameter: {}".format(t))
         self.agw = np.mean(widths)
         logger.info("Average gate width: {}".format(self.agw))
+        self.mgw = np.min(widths)
+        logger.info("Minimum gate width: {}".format(self.mgw))
+        fanout = 0
+        for net in self.nets.values():
+            fanout += len(net.gates) - 1 # substract the driving gate.
+        fanout /= len(self.nets)
+        logger.info("Average fanout: {}".format(fanout))
 
         # Gates dispersion
         # logger.info("Compute average gate dispersion")
@@ -569,7 +580,7 @@ class Design:
                     # TODO: try to need less try/except
                     if endOfComponents:
                         break # Dirty, but I don't care
-                    if inComponents and not 'END COMPONENTS' in line:
+                    if inComponents and not 'END COMPONENTS' in line and not 'HALO' in line:
                         # Parse the line and extract the cell
                         split = line.split(' ')
                         # print split
@@ -758,6 +769,8 @@ class Design:
         closestCoord = float('inf')
         tempCoord = [0,0]
 
+        # logger.debug("Set Pin Coord for net '{}'".format(net.name))
+
         if len(net.pins) > 1:
             logger.warning("Warning: '{}' is connected to more than one Pin.\nConsidering the first one and ignoring the others.".format(net.name))
         pin = list(net.pins.values())[0]
@@ -861,6 +874,7 @@ class Design:
 
                         if '- ' in line:
                             # new net
+                            pinDefaultCoord = False
                             net = Net(line.split(' ')[1])
                             instancesPerNetsStr += str(net.name)
                             netsStr += str(net.name) + "\n"
@@ -896,6 +910,7 @@ class Design:
                                         pin.net = net
                                         net.gatePins[pin.name] = "PIN"
                                         if not pin.placed:
+                                            # logger.debug("Pin default coord from pin '{}'".format(pin.name))
                                             pinDefaultCoord = True
                                     elif len(gateBlockSplit) > 1:
                                         # This is a gate, add its name to the net
@@ -1229,6 +1244,69 @@ class Design:
         wirelength = sum([abs(trunk - i[1]) for i in points])
         wirelength += max([i[0] for i in points]) - min([i[0] for i in points])
         return wirelength
+
+    def segmentLen(self):
+        '''
+        Compute individual length of each segments of a net.
+
+        To do so, for each Net, compute the Manhattan distance between each pair of connected pins.
+        '''
+        strOut = "NET_NAME PINS WL"
+        with alive_bar(len(self.nets)) as bar:
+            for net in self.nets.values():
+                gatePins = net.gatePins
+                for i in range(len(net.gatePins)):
+                    cellAName = list(net.gatePins.keys())[i]
+                    cellACoord = self.getGatePinCoordinates(net,cellAName)
+
+                    for j in range(i+1, len(net.gatePins)):
+                        cellBName = list(net.gatePins.keys())[j]
+                        # Create new net which name is <net name/gate A/gate B>
+                        # print("net: {}, gatePins: {}".format(net.name, net.gatePins))
+                        netname = '/'.join([net.name, cellAName, cellBName])
+                        newNet = Net(netname)
+
+                        # Get absolute coordinates of the pins
+                        cellBCoord = self.getGatePinCoordinates(net,cellBName)
+
+                        # Manhattan
+                        manLen = abs(cellACoord[0] - cellBCoord[0]) + abs(cellACoord[1] - cellBCoord[1])
+                        newNet.wl = manLen
+
+                        # Add to dictionary
+                        self.netSegments[netname] = newNet
+
+                        # Add to str
+                        strOut += "\n{} {} {}".format(netname, 2, manLen)
+                bar()
+
+        with open("WLnets_segments.out", 'w') as f:
+            f.write(strOut)
+
+    def getGatePinCoordinates(self, net, cellName):
+        '''
+        
+        Return:
+        -------
+        cellCoord : [x, y]
+            Array of absolute coordinates of the port on the cell for the
+            specified net.
+        '''
+        # print(net.name)
+        cellCoord = list()
+        # print("gatePins in fun: {}".format(net.gatePins))
+        # If the cell is actually a pin
+        if net.gatePins[cellName] == "PIN":
+            cellCoord = [self.pins[cellName].x, self.pins[cellName].y]
+        else:
+            gate = self.gates[cellName]
+            stdCellName = gate.stdCell
+            gatePin = macros[stdCellName].pins[net.gatePins[cellName]]
+            # Take the first port. It's easier to handle.
+            port = gatePin.ports[0]
+            cellCoord = gate.absoluteCoordinate(port.center)
+        return cellCoord
+
 
     def sortNets(self):
         netLengths = []
@@ -2573,8 +2651,13 @@ def extractStdCells(tech, memory=False, outDir=""):
         lefdir = "/home/para/dev/def_parser/SmallBOOM_CDN45/" # smallboom
     elif tech == "osu018":
         lefdir = "/home/para/dev/def_parser/msp430/" # msp430
+    elif tech == "3nm":
+        lefdir = "/home/para/dev/def_parser/MemPool/PDK/"
+        if memory == True:
+            lefdir = "/home/para/dev/def_parser/MemPool/PDK"
     else:
-        logger.error("Technology {} not supported. Exiting.".format(tech))
+        logger.error("Technology '{}' not supported. Exiting.".format(tech))
+        sys.exit()
 
 
     
@@ -2829,6 +2912,11 @@ if __name__ == "__main__":
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
+    elif args["--design"] == "spc-2020-pp-bl":
+        deffile = "spc_NoBuff_post-place/spc_NoBuff.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
     elif args["--design"] == "spc-bufferless-2020":
         deffile = "spc_NoBuff/spc_NoBuff.def"
         MEMORY_MACROS = True
@@ -2846,6 +2934,21 @@ if __name__ == "__main__":
         deffile = "msp430/openMSP430.def"
         UNITS_DISTANCE_MICRONS = 100
         stdCellsTech = "osu018"
+    elif args["--design"] == "megaboom-pp-bl":
+        deffile = "MegaBoom_post-place/BoomCore_NoBuff.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "megaboom-pp-bt":
+        deffile = "MegaBoom_post-place/MegaBoomCore_withBuff.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "7nm"
+    elif args["--design"] == "mempool-tile-bl":
+        deffile = "MemPool/tile_NoBuff.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "3nm"
     print(stdCellsTech)
 
     if args["--design"]:
@@ -2939,6 +3042,8 @@ if __name__ == "__main__":
     # design.Digest()
 
     design.extractNets(manhattanWireLength, mststWireLength)
+    if args["--segments"]:
+        design.segmentLen()
     design.sortNets()
     design.Digest()
     logger.info("Evaluate bounding boxes for every net...")
@@ -2970,7 +3075,7 @@ if __name__ == "__main__":
 
         logger.debug(design.width * design.height)
 
-        if clustersTarget == 0:
+        if clustersTarget == 0 or clusteringMethod == "onetoone":
             design.clusterizeOneToOne()
         else:
             # Isn't there a cleaner way to call those functions base on clusteringMethod ?

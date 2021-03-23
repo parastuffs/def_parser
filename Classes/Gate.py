@@ -67,6 +67,10 @@ class Gate:
         Useful to get the absolute coordinates of a port in a std cell,
         depending on the orientation of the later.
 
+        Reference: LEF/DEF Language Reference 5.8, p.244
+
+        p.183: corrdinates are always given relative to the lower left corner.
+
         Parameters:
         -----------
         coordinates : List
@@ -85,6 +89,14 @@ class Gate:
             return [self.x + self.width - coordinates[0], self.y + coordinates[1]]
         elif self.orientation == 'FS':
             return [self.x + coordinates[0], self.y + self.height - coordinates[1]]
+        elif self.orientation == 'W':
+            return [self.x + self.height - coordinates[1], self.y + coordinates[0]]
+        elif self.orientation == 'E':
+            return [self.x + coordinates[1], self.y + self.width - coordinates[0]]
+        elif self.orientation == 'FW':
+            return [self.x + coordinates[1],self.y + coordinates[0]]
+        elif self.orientation == 'FE':
+            return [self.x + self.height - coordinates[1], self.y + self.width - coordinates[0]]
         else:
             print("Error, the orientation of the cell '{}' of type '{}' is not regular: '{}'".format(self.name, self.stdCell, self.orientation))
             return None
