@@ -1,11 +1,12 @@
 """
 Usage:
-    heatmap.py (-d <dir>) [-c <dir>]
+    heatmap.py (-d <dir>) [-c <dir>] [-p <file>]
     heatmap.py (--help|-h)
 
 Options:
     -d <path>   Path to design folder
     -c <dir>    Sub dir from <path> to a folder containing ClustersInstances.out
+    -p <file>   Partition file with lines such as '<cell name> <O/1>' (.part)
     -h --help   Print this help
 """
 
@@ -129,7 +130,7 @@ def generateHeatmap(cells, maxX, maxY, dimension=300):
     plt.savefig('{}_{}_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])))
     plt.show()
 
-def clororizeClusters(clustDir, cells, dimension=1000):
+def colorizeClusters(clustDir, cells, dimension=1000):
     """
     ClustersInstances.out should be formatted as follow:
     <cluster ID> <instance 1> <...> <instance n>\n
@@ -174,15 +175,59 @@ def clororizeClusters(clustDir, cells, dimension=1000):
     plt.show()
 
 
+def colorizePartitions(partFile, cells, maxX, maxY, dimension=1000):
+    """
+    """
+    imgW = math.floor(dimension)
+    imgH = int(imgW * (maxY/maxX))
+
+    data = np.zeros(shape=(imgW+2,imgH+2))
+
+    with open(partFile, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.strip()
+            cellName = line.split()[0]
+            partID = int(line.split()[1])
+            coordinates = cells[cellName]
+            xl = math.floor(coordinates[0] * imgW / maxX)
+            xu = math.ceil(coordinates[2] * imgW / maxX)
+            yl = math.floor(coordinates[1] * imgH / maxY)
+            yu = math.ceil(coordinates[3] * imgH / maxY)
+
+            for i in range(xl, xu+1):
+                for j in range(yl, yu+1):
+                    data[i,j] = partID + 1 # +1 because I want the value 0 to still mean "there is nothing there"
+
+    x, y = np.mgrid[0:imgW+2:1, 0:imgH+2:1]
+
+    fig, ax = plt.subplots()
+    ax.set_xlim([0,imgW+2])
+    ax.set_ylim([0,imgH+2])
+    c = ax.pcolormesh(x, y, data, cmap='binary', shading='auto', vmin=data.min(), vmax=data.max())
+    ax.set_title('Resolution: {}'.format(floor(dimension)))
+    ax.axis('equal')
+    fig.colorbar(c, ax=ax)
+    fig.tight_layout()
+    partDir = os.sep.join(partFile.split(os.sep)[:-1])
+    designName = "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])
+    plt.savefig(os.path.join(partDir,'{}_{}_clusters_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), designName)))
+    plt.show()
+
+
+
 if __name__ == "__main__":
     output_dir = ""
     clustDir = None
+    partFile = None
 
     args = docopt(__doc__)
     if args["-d"]:
         output_dir = args["-d"]
     if args["-c"]:
         clustDir = args["-c"]
+    if args["-p"]:
+        partFile = args["-p"]
 
     # Load base config from conf file.
     logging.config.fileConfig('log.conf')
@@ -209,6 +254,8 @@ if __name__ == "__main__":
     cells, maxX, maxY = loadDesign()
 
     if clustDir:
-        clororizeClusters(clustDir, cells)
+        colorizeClusters(clustDir, cells)
+    elif partFile:
+        colorizePartitions(partFile, cells, maxX, maxY)
     else:
         generateHeatmap(cells, maxX, maxY)
