@@ -1,23 +1,19 @@
 """
 Usage:
-    heatmap.py (-d <dir>) [-c <dir>] [-p <file>]
+    heatmap.py (-d <dir>) [-c <dir>] [-p <file>] [-n <file>]
     heatmap.py (--help|-h)
 
 Options:
     -d <path>   Path to design folder
     -c <dir>    Sub dir from <path> to a folder containing ClustersInstances.out
     -p <file>   Partition file with lines such as '<cell name> <O/1>' (.part)
+    -n <file>   File with nets cut by partition (connectivity_partition.txt)
     -h --help   Print this help
 """
 
-
-from __future__ import division # http://stackoverflow.com/questions/1267869/how-can-i-force-division-to-be-floating-point-division-keeps-rounding-down-to-0
-from PIL import Image
 from math import *
-import copy
 import locale
 import os
-import shutil
 import datetime
 import errno
 import random
@@ -26,17 +22,10 @@ import logging, logging.config
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-import bst
+import matplotlib.colors as mcolors
 import statistics
 import math
 from alive_progress import alive_bar
-from Classes.Cluster import *
-from Classes.Gate import *
-from Classes.Net import *
-from Classes.Pin import *
-from Classes.Port import *
-from Classes.StdCell import *
-from Classes.GatePin import *
 try:
     locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 except locale.Error:
@@ -175,7 +164,7 @@ def colorizeClusters(clustDir, cells, dimension=1000):
     plt.show()
 
 
-def colorizePartitions(partFile, cells, maxX, maxY, dimension=1000):
+def colorizePartitions(partFile, cells, maxX, maxY, netCutFile, dimension=1000):
     """
     """
     imgW = math.floor(dimension)
@@ -183,12 +172,15 @@ def colorizePartitions(partFile, cells, maxX, maxY, dimension=1000):
 
     data = np.zeros(shape=(imgW+2,imgH+2))
 
+    partInstances = dict() # { instance name : 0/1}
+
     with open(partFile, 'r') as f:
         lines = f.readlines()
         for line in lines:
             line = line.strip()
             cellName = line.split()[0]
             partID = int(line.split()[1])
+            partInstances[cellName] = partID
             coordinates = cells[cellName]
             xl = math.floor(coordinates[0] * imgW / maxX)
             xu = math.ceil(coordinates[2] * imgW / maxX)
@@ -199,18 +191,68 @@ def colorizePartitions(partFile, cells, maxX, maxY, dimension=1000):
                 for j in range(yl, yu+1):
                     data[i,j] = partID + 1 # +1 because I want the value 0 to still mean "there is nothing there"
 
+    netPoints = dict()
+    if netCutFile:
+        netInstances = dict() # {net name : [instance names]}
+        with open(netCutFile, 'r') as f:
+            lines = f.readlines()
+        for net in lines[0].split(',')[3:]:
+            netInstances[net] = list()
+        with open("InstancesPerNet.out", 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            netName = line.split()[0]
+            if netName in netInstances.keys():
+                netInstances[netName] = line.split()[1:]
+        netPoints = dict() # {net name : [ [partition ID, (x, y)], ...] }
+        logger.info("Extracting cut net end points")
+        with alive_bar(len(netInstances)) as bar:
+            for net in netInstances:
+                bar()
+                netPoints[net] = list()
+                for instance in netInstances[net]:
+                    coordinates = cells[instance]
+                    xl = math.floor(coordinates[0] * imgW / maxX)
+                    xu = math.ceil(coordinates[2] * imgW / maxX)
+                    yl = math.floor(coordinates[1] * imgH / maxY)
+                    yu = math.ceil(coordinates[3] * imgH / maxY)
+                    center = (xl + (xu - xl)/2, yl + (yu - yl)/2)
+                    netPoints[net].append([partInstances[instance], center])
+
+
     x, y = np.mgrid[0:imgW+2:1, 0:imgH+2:1]
 
-    fig, ax = plt.subplots()
+    partDir = os.sep.join(partFile.split(os.sep)[:-1])
+    designName = "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])
+
+    fig, ax = plt.subplots(figsize=(15, 10))
     ax.set_xlim([0,imgW+2])
     ax.set_ylim([0,imgH+2])
-    c = ax.pcolormesh(x, y, data, cmap='binary', shading='auto', vmin=data.min(), vmax=data.max())
-    ax.set_title('Resolution: {}'.format(floor(dimension)))
+    c = ax.pcolormesh(x, y, data, cmap='binary', shading='auto', vmin=data.min(), vmax=data.max(), zorder=1)
+
+    logger.info("Plotting 3D nets")
+    with alive_bar(len(netPoints)) as bar:
+        for net in netPoints:
+            bar()
+            # Ugly patch to ignore clock net
+            if not "clk" in net and not "rst" in net:
+                logger.debug("Net: {}, len: {}".format(net, len(netPoints[net])))
+                points = netPoints[net]
+                color = random.choice(list(mcolors.XKCD_COLORS))
+                for i in range(len(points)):
+                    for j in range(i+1, len(points)):
+                        # If points are on different partitions
+                        if points[i][0] != points[j][0]:
+                            xs = points[i][1][0] # Source
+                            xd = points[j][1][0] # Destination
+                            ys = points[i][1][1] # Source
+                            yd = points[j][1][1] # Destination
+
+                            ax.plot([xs, xd], [ys, yd], linewidth=1, color=color, zorder=10)
+    ax.set_title('Resolution: {}, {}'.format(floor(dimension), designName))
     ax.axis('equal')
     fig.colorbar(c, ax=ax)
     fig.tight_layout()
-    partDir = os.sep.join(partFile.split(os.sep)[:-1])
-    designName = "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])
     plt.savefig(os.path.join(partDir,'{}_{}_clusters_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), designName)))
     plt.show()
 
@@ -220,6 +262,7 @@ if __name__ == "__main__":
     output_dir = ""
     clustDir = None
     partFile = None
+    netCutFile = None
 
     args = docopt(__doc__)
     if args["-d"]:
@@ -228,6 +271,8 @@ if __name__ == "__main__":
         clustDir = args["-c"]
     if args["-p"]:
         partFile = args["-p"]
+    if args["-n"]:
+        netCutFile = args["-n"]
 
     # Load base config from conf file.
     logging.config.fileConfig('log.conf')
@@ -256,6 +301,6 @@ if __name__ == "__main__":
     if clustDir:
         colorizeClusters(clustDir, cells)
     elif partFile:
-        colorizePartitions(partFile, cells, maxX, maxY)
+        colorizePartitions(partFile, cells, maxX, maxY, netCutFile)
     else:
         generateHeatmap(cells, maxX, maxY)
