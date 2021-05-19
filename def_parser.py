@@ -10,7 +10,8 @@ Usage:
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
                             spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4,
-                            smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, mempool-tile-bl.
+                            smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
+                            mempool-tile-bl, mempool-tile-bt, mempool-group-bl.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random, onetoone.
                             or metal. [default: random]
@@ -1240,9 +1241,12 @@ class Design:
             Size of the tree
         """
         # 1. Find the median y coordinate
-        trunk = statistics.median([i[1] for i in points])
-        wirelength = sum([abs(trunk - i[1]) for i in points])
-        wirelength += max([i[0] for i in points]) - min([i[0] for i in points])
+        if len(points) > 0:
+            trunk = statistics.median([i[1] for i in points])
+            wirelength = sum([abs(trunk - i[1]) for i in points])
+            wirelength += max([i[0] for i in points]) - min([i[0] for i in points])
+        else:
+            wirelength = 0
         return wirelength
 
     def segmentLen(self):
@@ -2945,7 +2949,18 @@ if __name__ == "__main__":
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
     elif args["--design"] == "mempool-tile-bl":
-        deffile = "MemPool/tile_NoBuff.def"
+        deffile = "MemPool/tilePnR_2021-05-05/tile_NoBuff.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "3nm"
+    elif args["--design"] == "mempool-tile-bt": # WITH buffer tree
+        deffile = "MemPool/tilePnR_2021-05-05/tile_withBuff.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "3nm"
+    elif args["--design"] == "mempool-group-bl":
+        # deffile = "MemPool-Group/groupNoBuff.def"
+        deffile = "MemPool-Group/flat/noBuffers/group_noBuffers.def"
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "3nm"
