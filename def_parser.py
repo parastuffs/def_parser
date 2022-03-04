@@ -9,9 +9,11 @@ Usage:
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
-                            spc-2020, spc-bufferless-2020, ccx, ldpc-4x4-serial, ldpc-4x4,
+                            spc-2020, spc-bufferless-2020, ccx, ccx-in3, ldpc-4x4-serial, ldpc-4x4,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
-                            mempool-tile-bl, mempool-tile-bt, mempool-group-bl.
+                            mempool-tile-bl, mempool-tile-bt, mempool-group-bl,
+                            mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
+                            mempool-tile-pp, mempool-tile-pp-noFE.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random, onetoone.
                             or metal. [default: random]
@@ -574,7 +576,7 @@ class Design:
         cellSizeStr = "cell width height\n"
 
         with open(deffile, 'r') as f:
-            with alive_bar(unknown='balls_scrolling') as bar:
+            with alive_bar() as bar:
                 for line in f:
                     bar()
                     # TODO: clean to remove the use of break
@@ -851,7 +853,7 @@ class Design:
         pinDefaultCoord = False # Pin has real coordinates. If True, need to call setPinCoordinates(...) to approximate them. This happens when the pin was not placed during the PnR and thus has no "PLACED" statement, hence no coordinates, so defaulted to (0,0).
 
         with open(deffile, 'r') as f:
-            with alive_bar(unknown='balls_scrolling') as bar:
+            with alive_bar() as bar:
                 line = f.readline()
                 while line:
                     bar()
@@ -1061,15 +1063,26 @@ class Design:
                                     logger.debug("{}: MSTST length of 0...".format(net.name))
                                     logger.debug("\tPoints in net: {}".format(points))
                                     logger.debug("\tGates in net: {}".format(cellsToConnect))
+                                    cellThatActuallyArePins = 0
                                     for cell in cellsToConnect:
-                                        gate = self.gates[cell]
-                                        stdCellName = gate.stdCell
-                                        gatePin = macros[stdCellName].pins[net.gatePins[cell]]
-                                        # Take the first port. It's easier to handle.
-                                        port = gatePin.ports[0]
-                                        logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
-                                        logger.debug("\tPort center: {}".format(port.center))
-                                        logger.debug("\tOrientation: {}".format(gate.orientation))
+                                        if cell in self.gates:
+                                            gate = self.gates[cell]
+                                            stdCellName = gate.stdCell
+                                            gatePin = macros[stdCellName].pins[net.gatePins[cell]]
+                                            # Take the first port. It's easier to handle.
+                                            port = gatePin.ports[0]
+                                            logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
+                                            logger.debug("\tPort center: {}".format(port.center))
+                                            logger.debug("\tOrientation: {}".format(gate.orientation))
+                                        elif cell in self.pins:
+                                            cellThatActuallyArePins += 1
+                                            logger.debug("\t{} is a PIN.".format(cell))
+                                            if not self.pins[cell].placed:
+                                                logger.debug("\t\tIt was NOT placed.")
+                                    if cellThatActuallyArePins == len(cellsToConnect):
+                                        logger.debug("\tNet is only PINS that were not placed, skip net creation.")
+                                        line = f.readline()
+                                        continue
 
 
                             #####
@@ -2578,6 +2591,56 @@ class Design:
             file.write(clusterAreaOut)
 
 
+
+    def clusterSanityCheck(self):
+        '''
+        Proceed to some sanity checks after clustering the design.
+        - Cluster area
+        - Number of cells in each cluster
+
+        Output those figures in a file, raw and normalized.
+        '''
+        logger.info("Cluster sanity check")
+        areas = []
+        cells = []
+        for cluster in self.clusters.values():
+            areas.append(cluster.gateArea)
+            cells.append(len(cluster.gates))
+
+        # Skew from mean as a proportion ranging from 0 to 1.
+        # Skew from what was expected, normalized on what is expected.
+        # e.g. We have a cluster that is 20um2, but the average should be 15um2,
+        # the skew is (20-15 / 15) = 0.33
+        areasRelative = list(map(lambda x: (x/(sum(areas)/len(areas))) - 1, areas))
+        cellsRelative = list(map(lambda x: (x/(sum(cells)/len(cells))) - 1, cells))
+
+        # Skew from what was expected, normalized on the global value.
+        # e.g. We have a cluster that is 20um2, but the average should be 15um2,
+        # for a design that is 1000um2 total, hence the skew is 20-15 / 1000 = 0.005
+        areasGlobal = list(map(lambda x: (x - (sum(areas)/len(areas))) / sum(areas), areas))
+        cellsGlobal = list(map(lambda x: (x - (sum(cells)/len(cells))) / sum(cells), cells))
+
+        data = "clusters," + str(len(self.clusters)) + ",gates per cluster," + str(len(self.gates)/len(self.clusters)) + "\n"
+        data += "areasRelative,"+str(areasRelative[0])
+        for a in areasRelative[1:]:
+            data += ","+str(a)
+        data += "\n"
+        data += "cellsRelative,"+str(cellsRelative[0])
+        for c in cellsRelative[1:]:
+            data += ","+str(c)
+        data += "\n"
+        data += "areasGlobal,"+str(areasGlobal[0])
+        for a in areasGlobal[1:]:
+            data += ","+str(a)
+        data += "\n"
+        data += "cellsGlobal,"+str(cellsGlobal[0])
+        for c in cellsGlobal[1:]:
+            data += ","+str(c)
+
+        with open('clusterSanityCheck.csv', 'w') as f:
+            f.write(data)
+
+
     def RentStats(self, outFile):
         '''
         Export all Rent stats to outFile.
@@ -2655,6 +2718,8 @@ def extractStdCells(tech, memory=False, outDir=""):
         lefdir = "/home/para/dev/def_parser/SmallBOOM_CDN45/" # smallboom
     elif tech == "osu018":
         lefdir = "/home/para/dev/def_parser/msp430/" # msp430
+    elif tech == "in3_2021-12":
+        lefdir = "/home/para/dev/def_parser/Mempool_Tile_in3_2021-12-10/PDK"
     elif tech == "3nm":
         lefdir = "/home/para/dev/def_parser/MemPool/PDK/"
         if memory == True:
@@ -2949,21 +3014,47 @@ if __name__ == "__main__":
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
     elif args["--design"] == "mempool-tile-bl":
-        deffile = "MemPool/tilePnR_2021-05-05/tile_NoBuff.def"
+        deffile = "Mempool_Tile_in3_2021-12-10/tile/forQD/tile_noBuffers.def"
+        # deffile = "MemPool/tilePnR_2021-05-05/tile_NoBuff.def"
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
-        stdCellsTech = "3nm"
+        stdCellsTech = "in3_2021-12"
     elif args["--design"] == "mempool-tile-bt": # WITH buffer tree
-        deffile = "MemPool/tilePnR_2021-05-05/tile_withBuff.def"
+        deffile = "Mempool_Tile_in3_2021-12-10/tile/forQD/tile_witBuffers.def"
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
-        stdCellsTech = "3nm"
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "mempool-tile-post-FP": # Post-palcement no legalisation
+        deffile = "Mempool_Tile_in3_2021-12-10/2022-02/tile_postFPPlace.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "mempool-tile-post-FP-noFE": # Post-palcement no legalisation, FE_* instances removed
+        deffile = "Mempool_Tile_in3_2021-12-10/2022-02/tile_postFPPlace_delInstFE.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "mempool-tile-pp": # Post-palcement
+        deffile = "Mempool_Tile_in3_2021-12-10/2022-02/tile_postPlace.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "mempool-tile-pp-noFE": # Post-palcement,  FE_* instances removed
+        deffile = "Mempool_Tile_in3_2021-12-10/2022-02/tile_postPlace_delInstFE.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
     elif args["--design"] == "mempool-group-bl":
         # deffile = "MemPool-Group/groupNoBuff.def"
-        deffile = "MemPool-Group/flat/noBuffers/group_noBuffers.def"
+        deffile = "MemPool-Group/flat-2021-09-09/group_NoBuff.def"
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "3nm"
+    elif args["--design"] == "ccx-in3":
+        deffile = "CCX_in3/ccx_noFE.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
     print(stdCellsTech)
 
     if args["--design"]:
@@ -3114,6 +3205,7 @@ if __name__ == "__main__":
                 design.metalClustering(clustersTarget)
                 design.clusterConnectivity()
         design.clusterArea()
+        design.clusterSanityCheck()
 
     os.chdir(output_dir)
     design.RentStats("RentStats.csv")
