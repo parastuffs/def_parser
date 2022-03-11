@@ -2751,10 +2751,15 @@ def extractStdCells(tech, memory=False, outDir=""):
                         macroName = line.split()[1] # May need to 'line = line.strip("\n")'
                         # print macroName
                         macro = StdCell(macroName)
-                        # logger.debug("parsing macro '{}'".format(macroName))
 
                     while inMacro:
                         # logger.debug(line)
+                        if 'CLASS' in line:
+                            # BLOCK is a large macro, such as a memory
+                            # CORE is a logic cell or a flip-flop, the classic stuff
+                            macroClass = line.strip().split(' ')[1]
+                            if macroClass == "BLOCK":
+                                macro.isMemory = True
                         if 'SIZE' in line:
                             macroWidth = float(line.split()[1])
                             # print macroWidth
@@ -2764,7 +2769,7 @@ def extractStdCells(tech, memory=False, outDir=""):
                             macro.setHeight(macroHeight)
                             # macros[macroName] = [macroWidth, macroHeight]
                             macros[macroName] = macro
-                            if memory:
+                            if macro.isMemory:
                                 memoryMacros[macroName] = macro
                         elif 'PIN ' in line:
                             pin = GatePin(line.split()[1])
