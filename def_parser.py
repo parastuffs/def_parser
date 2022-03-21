@@ -3,6 +3,7 @@ Usage:
     def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
                     [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl] [--bb=<method>]
                     [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
+                    [--bold]
     def_parser.py (--help|-h)
     def_parser.py   [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl] [--bb=<method>]
                     [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
@@ -11,7 +12,7 @@ Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
                             spc-2020, spc-bufferless-2020, ccx, ccx-in3, ldpc-4x4-serial, ldpc-4x4,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
-                            mempool-tile-bl, mempool-tile-bt, mempool-group-bl,
+                            mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
                             mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
                             mempool-tile-pp, mempool-tile-pp-noFE.
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
@@ -27,6 +28,7 @@ Options:
     --udm=VALUE             UNITS DISTANCE MICRONS, e.g. 10000, superseded by --design
     --leftech=TECH          LEF tech used, e.g. 7nm, superseded by --design
     --segments              Compute the Manhattan segment length of each net into WLnets_wegments.out
+    --bold                  Suppress the clustering sanity checks
     -h --help               Print this help
 
 Note:
@@ -2603,10 +2605,14 @@ class Design:
         logger.info("Cluster sanity check")
         areas = []
         cells = []
-        for cluster in self.clusters.values():
-            areas.append(cluster.gateArea)
-            cells.append(len(cluster.gates))
+        logger.info("\t Gathering cluster info...")
+        with alive_bar(len(self.clusters)) as bar:
+            for cluster in self.clusters.values():
+                bar()
+                areas.append(cluster.gateArea)
+                cells.append(len(cluster.gates))
 
+        logger.info("\t Mapping skew from average for areas and cells...")
         # Skew from mean as a proportion ranging from 0 to 1.
         # Skew from what was expected, normalized on what is expected.
         # e.g. We have a cluster that is 20um2, but the average should be 15um2,
@@ -2614,6 +2620,7 @@ class Design:
         areasRelative = list(map(lambda x: (x/(sum(areas)/len(areas))) - 1, areas))
         cellsRelative = list(map(lambda x: (x/(sum(cells)/len(cells))) - 1, cells))
 
+        logger.info("\t Mapping skew from expected values, normalized...")
         # Skew from what was expected, normalized on the global value.
         # e.g. We have a cluster that is 20um2, but the average should be 15um2,
         # for a design that is 1000um2 total, hence the skew is 20-15 / 1000 = 0.005
@@ -2647,6 +2654,8 @@ class Design:
         Not ordered at the moment
         '''
         outStr = "gate count, terminals\n"
+
+        logger.info("Gathering Rent's stats...")
 
         for key in self.RentTerminals:
             if key != len(self.gates):
@@ -2915,6 +2924,7 @@ if __name__ == "__main__":
     manhattanWireLength = False
     mststWireLength = False
     bbMethod = "pin"
+    bold = False
 
     args = docopt(__doc__)
 
@@ -3055,6 +3065,11 @@ if __name__ == "__main__":
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "3nm"
+    elif args["--design"] == "mempool-group-FP-noFE":
+        deffile = "MemPool-Group/2022-03-17/group_simplePlaceNoFE.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
     elif args["--design"] == "ccx-in3":
         deffile = "CCX_in3/ccx_noFE.def"
         MEMORY_MACROS = False
@@ -3100,6 +3115,9 @@ if __name__ == "__main__":
 
     if clustersTargets == 0:
         clusteringMethod = "OneToOne"
+
+    if args["--bold"]:
+        bold = True
 
 
     # Create the directory for the output.
@@ -3210,7 +3228,8 @@ if __name__ == "__main__":
                 design.metalClustering(clustersTarget)
                 design.clusterConnectivity()
         design.clusterArea()
-        design.clusterSanityCheck()
+        if not bold:
+            design.clusterSanityCheck()
 
     os.chdir(output_dir)
     design.RentStats("RentStats.csv")
