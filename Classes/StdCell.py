@@ -7,6 +7,7 @@ class StdCell:
         self.width = 0
         self.height = 0
         self.pins = dict() # Dictionary of GatePin objects, {GatePin.name:GatePin}
+        self.isMemory = False
     
     def setWidth(self, w):
         self.width=w
