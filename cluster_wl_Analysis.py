@@ -2,8 +2,8 @@
 Plot WL of inter- and intra-clusters.
 
 Usage:
-    cluster_wl_Analysis.py.py     [-d <dir>]
-    cluster_wl_Analysis.py.py     --help
+    cluster_wl_Analysis.py     [-d <dir>]
+    cluster_wl_Analysis.py     --help
 
 Options:
     -d <file>   Dir containing the clusters
@@ -51,40 +51,56 @@ if __name__ == "__main__":
     for line in lines[1:]:
         wl.append(float(line.split(' ')[2]))
     points.append([wl])
-    logger.info("Global net WL average: {}, median: {}".format(statistics.mean(wl), statistics.median(wl)))
+    logger.info("Global net WL average: {}, median: {}, total: {}".format(statistics.mean(wl), statistics.median(wl), sum(wl)))
+
+    wlInterIntraTot = list() # [ [grain, inter-wl, intra-wl], ... ]
+    clusterGrains = list() # List of clustering grains, [2, 4, 8, ...]
 
     for d in natsorted(os.listdir(rootDir)):
         clusterDir = os.path.join(rootDir, d)
         if os.path.isdir(clusterDir):
             os.chdir(clusterDir)
+            clusterGrain = clusterDir.split('_')[-1]
+            currentClusterWL = [clusterGrain]
+            clusterGrains.append(clusterGrain)
             wlInter = list()
             with open("inter-cluster_nets_wl.out", 'r') as f:
                 lines = f.readlines()
             for line in lines:
                 wlInter.append(float(line.split(', ')[1]))
-            logger.info("Level {} inter-cluster net WL average: {}, median: {}".format(clusterDir.split('_')[-1], statistics.mean(wlInter), statistics.median(wlInter)))
+            currentClusterWL.append(sum(wlInter))
+            logger.info("Level {} inter-cluster net WL average: {}, median: {}, total: {}".format(clusterGrain, statistics.mean(wlInter), statistics.median(wlInter), sum(wlInter)))
             wlIntra = list()
             with open("intra-cluster_nets_wl.out", 'r') as f:
                 lines = f.readlines()
             for line in lines:
                 wlIntra.append(float(line.split(', ')[1]))
+            currentClusterWL.append(sum(wlIntra))
             points.append([wlInter, wlIntra])
-            logger.info("Level {} intra-cluster net WL average: {}, median: {}".format(clusterDir.split('_')[-1], statistics.mean(wlIntra), statistics.median(wlIntra)))
+            logger.info("Level {} intra-cluster net WL average: {}, median: {}, total: {}".format(clusterGrain, statistics.mean(wlIntra), statistics.median(wlIntra), sum(wlIntra)))
+            wlInterIntraTot.append(currentClusterWL)
 
     os.chdir(rootDir)
 
-
     filenameInfo = "{}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-    labels = list()
+
+    wlInterIntraTotStr = "Grain, Inter-cluster WL, Intra-cluster WL\n"
+    for i in wlInterIntraTot:
+        wlInterIntraTotStr += "{}, {}, {}\n".format(i[0], i[1], i[2])
+    with open("{}_cluster_WL_tot.csv".format(filenameInfo), 'w') as f:
+        f.write(wlInterIntraTotStr)
 
     plt.figure()
     plt.title("Nets WL, inter-cluster (left) and intra-cluster (right)\nDepending on clustering level")
     flierprops = dict(marker='o', markersize=1, linestyle='none')
     cnt = 0
     for i, data in enumerate(points):
-        plt.boxplot(data, positions=[(cnt+y+i) for y in range(len(data))], showmeans=True, meanline=True, flierprops=flierprops)
+        plt.boxplot(data, positions=[(cnt+y+i) for y in range(len(data))], showmeans=True, meanline=True, showfliers=False, flierprops=flierprops)
         cnt += len(data)
-    plt.xticks([0, 2.5, 5.5, 8.5, 11.5, 14.5, 17.5], ["Global", "1", "2", "3", "4", "5", "6"])
+    xticksLabels = ["Global"]
+    for i in clusterGrains:
+        xticksLabels.append(i)
+    plt.xticks([i*3 for i in range(len(xticksLabels))], xticksLabels, rotation=45)
     plt.savefig('{}_cluster_WL.png'.format(filenameInfo))
     plt.savefig('{}_cluster_WL.pdf'.format(filenameInfo))
     plt.show()
