@@ -10,7 +10,8 @@ Usage:
 
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
-                            spc-2020, spc-bufferless-2020, ccx, ccx-in3, ldpc-4x4-serial, ldpc-4x4,
+                            spc-2020, spc-bufferless-2020, ccx, ccx-in3, ccx-in3-du10, ccx-in3-du85,
+                            ldpc-4x4-serial, ldpc-4x4,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
                             mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
                             mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
@@ -847,7 +848,7 @@ class Design:
         inNets = False
         instancesPerNetsStr = "" # String containing the content of 'InstancesPerNet.out'.
         netsStr = "" # String containing the content of 'Nets.out'
-        wlNetsStr = "NET  NUM_PINS  LENGTH\n" # String containing the content of 'WLnets.out'.
+        wlNetsStr = "NET NUM_PINS LENGTH\n" # String containing the content of 'WLnets.out'.
                                               # The 'NUM_PINS' part is the number of gates + the number of pins.
         cellCoordStr = "" # String containing the content of 'CellCoord.out'
 
@@ -1042,12 +1043,14 @@ class Design:
                             #####
                             elif mststWireLength:
                                 cellsToConnect = list(net.gatePins.keys())
+                                # logger.debug("In net {}, Cells to connect: {}".format(net.name, cellsToConnect))
 
                                 points = []
                                 for cell in net.gatePins.keys():
                                     # If the cell is actually a pin
                                     if net.gatePins[cell] == "PIN":
                                         points.append([self.pins[cell].x, self.pins[cell].y])
+                                        # logger.debug("PIN at {}".format(points[-1]))
                                     else:
                                         gate = self.gates[cell]
                                         stdCellName = gate.stdCell
@@ -1056,15 +1059,17 @@ class Design:
                                         port = gatePin.ports[0]
                                         # points.append([port.center[0] + gate.x, port.center[1] + gate.y])
                                         points.append(gate.absoluteCoordinate(port.center))
+                                        # logger.debug("Cell port center at {}".format(points[-1]))
 
                                 netLength = self.MSTSTwl(points)
+                                # logger.debug("computed net length: {}".format(netLength))
                                 # Skip the rest of the details
                                 while not ';' in netDetails:
                                     netDetails = f.readline().strip()
                                 if netLength == 0 and len(points) > 1:
-                                    logger.debug("{}: MSTST length of 0...".format(net.name))
-                                    logger.debug("\tPoints in net: {}".format(points))
-                                    logger.debug("\tGates in net: {}".format(cellsToConnect))
+                                    # logger.debug("{}: MSTST length of 0...".format(net.name))
+                                    # logger.debug("\tPoints in net: {}".format(points))
+                                    # logger.debug("\tGates in net: {}".format(cellsToConnect))
                                     cellThatActuallyArePins = 0
                                     for cell in cellsToConnect:
                                         if cell in self.gates:
@@ -1073,16 +1078,16 @@ class Design:
                                             gatePin = macros[stdCellName].pins[net.gatePins[cell]]
                                             # Take the first port. It's easier to handle.
                                             port = gatePin.ports[0]
-                                            logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
-                                            logger.debug("\tPort center: {}".format(port.center))
-                                            logger.debug("\tOrientation: {}".format(gate.orientation))
+                                            # logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
+                                            # logger.debug("\tPort center: {}".format(port.center))
+                                            # logger.debug("\tOrientation: {}".format(gate.orientation))
                                         elif cell in self.pins:
                                             cellThatActuallyArePins += 1
-                                            logger.debug("\t{} is a PIN.".format(cell))
-                                            if not self.pins[cell].placed:
-                                                logger.debug("\t\tIt was NOT placed.")
+                                            # logger.debug("\t{} is a PIN.".format(cell))
+                                            # if not self.pins[cell].placed:
+                                                # logger.debug("\t\tIt was NOT placed.")
                                     if cellThatActuallyArePins == len(cellsToConnect):
-                                        logger.debug("\tNet is only PINS that were not placed, skip net creation.")
+                                        logger.debug("\tNet '{}' is only PINS that were not placed, skip net creation.".format(net.name))
                                         line = f.readline()
                                         continue
 
@@ -1200,9 +1205,9 @@ class Design:
 
                                     netDetails = f.readline().strip()
                             # netLength = netLength / UNITS_DISTANCE_MICRONS # 10^-4um to um
-                            if len(net.pins) > 0:
-                                # logger.debug("'{}' needs to add pin length of {}".format(net.name, list(net.pins.values())[0].approximatedAdditionalLength))
-                                netLength += list(net.pins.values())[0].approximatedAdditionalLength
+                            # if len(net.pins) > 0:
+                            #     # logger.debug("'{}' needs to add pin length of {}".format(net.name, list(net.pins.values())[0].approximatedAdditionalLength))
+                            #     netLength += list(net.pins.values())[0].approximatedAdditionalLength
                             net.setLength(netLength)
                             self.totalWireLength += netLength
                             # logger.debug("{}: {}".format(net.name, netLength))
@@ -1766,10 +1771,301 @@ class Design:
 ##         ##    ##   ##     ##  ##     ##  
 ##         ##     ##    #####    ########   
 
+    def newProgressiveWireLength(self, objective):
+        """
+        Create clusters until the <objective> wirelength is converted into inracluster wires.
+        <objective> is a multiple of the average-gate-width of the design (Design.agw).
+        """
+        logger.info("Clusterizing with objective {}*AGW ({})".format(objective, self.agw))
+        objective = objective * self.agw
+        criticalRatioReached = False
+        highestClusterID = 0 # Highest cluster ID assigned, needed to know which new ID can be assigned without risking to assign the same twice.
+
+        # If it's the first time we run this
+        if len(self.clusters) == 0:
+            # First, create sorted list of net length and name.
+            netLengths = []
+            netNames = []
+            for net in self.nets.values():
+                netLengths.append(net.wl)
+                netNames.append(net.name)
+            heapSort(netLengths, netNames)
+
+
+            # Create the basic clusters containing only one gate.
+            for i, gate in enumerate(list(self.gates.values())):
+                width = gate.width
+                height = gate.height
+                area = gate.getArea()
+                origin = [gate.x, gate.y]
+                identifier = i
+
+                cluster = Cluster(width, height, area, origin, identifier)
+
+                cluster.addGate(gate)
+
+                cluster.setGateArea(area) # Same as the cluster area in this case.
+
+                self.clusters[cluster.id] = cluster
+
+                gate.addCluster(cluster)
+        else:
+            logger.debug("Reusing the previous step ({} clusters)".format(len(self.clusters)))
+            # We ca re-use a previous run.
+            # To do so, find all the nets remaining between the clusters.
+            # For each cluster, get the gates.
+            # For each gate, get the nets.
+            # For each net, get the gates and check if they all are in the same cluster.
+            netLengths = []
+            netNames = []
+            highestClusterID = len(self.clusters)
+            for cluster in self.clusters.values():
+                mainClusterID = cluster.id
+                for gate in cluster.gates.values():
+                    for net in gate.nets.values():
+                        for subgate in net.gates.values():
+                            if subgate.cluster.id != mainClusterID:
+                                try:
+                                    netNames.index(net.name)
+                                except ValueError:
+                                    # The net is not yet in the list
+                                    netLengths.append(net.wl)
+                                    netNames.append(net.name)
+                                break #Stop looking into this net, go on with the next one.
+            heapSort(netLengths, netNames)
+
+        highestClusterID = len(self.clusters)
+
+
+
+        minWL = netLengths[0] # Do not use the min() function, I want to fetch the first one. This expects the array to be sorted at first, however.
+
+        netsToHide = [] # List of Net names we want to hide inside clusters, sorted by length. No objects which are heavier to handle and copy.
+        for i, wl in enumerate(netLengths):
+            if wl < objective:
+                netsToHide.append(netNames[i])
+            else:
+                break
+        newNetsToHide = list(netsToHide) # Plain copy in which we will remove elements as we hide them inside clusters.
+        fixToBottom = set() # set of instance names that needs to be fixed on bottom because they are connected to a pin on bottom with a short net.
+
+        while len(newNetsToHide) > 0:
+            logger.debug("~~~~~~~~~~ New iteration: {} nets to hide ~~~~~~~~~~~".format(len(newNetsToHide)))
+            netsToHide = list(newNetsToHide)
+            mergedGates = list() # List of merged gates names. If a gate is in the list, don't merge it again in this iteration! This is to avoid very large clusters and try to split them.
+            with alive_bar(len(netsToHide)) as bar:
+                for netName in netsToHide:
+                    bar()
+                    net = self.nets[netName]
+                    skip = False
+
+                    #############################################################################################
+                    # Check if the net is not composed of only one gate, meaning it's connected to a bottom pin.
+                    # In such case, the gate (and its whole cluster actually) needs to be fixed on bottom.
+                    #############################################################################################
+                    if len(net.gates) == 1:
+                        for gateName in net.gates.keys():
+                            fixToBottom.add(gateName)
+                        del newNetsToHide[newNetsToHide.index(netName)]
+                        continue # skip the rest that is thus useless
+
+                    #########################################################################
+                    # Check that <net> is not entirely contained inside a single cluster.
+                    # This is not handled the most efficient way, but it sure is easy.
+                    # This might happen as a side effect of merging some clusters together.
+                    singleCluster = True
+                    netClusters = set()
+                    for gate in net.gates.values():
+                        netClusters.add(gate.cluster.id)
+                        if len(netClusters) > 1:
+                            singleCluster = False
+                            break
+                    # Net already in a single cluster, remove it and consider the next one.
+                    if singleCluster:
+                        del newNetsToHide[newNetsToHide.index(netName)]
+                        continue
+                    #########################################################################
+
+                    ######################################################################################
+                    for gate in net.gates.keys():
+                        # Check if a gate connected to the net has already been merged in this iteration.
+                        # We don't add them to the list just yet, this is just a first verification.
+                        if gate in mergedGates:
+                            skip = True
+                            break
+                    if skip:
+                        # Skip this net for this iteration.
+                        continue
+                    ######################################################################################
+
+                    clustersToDelete = set() # List of clusters we need to delete post-merger
+                    newCluster = Cluster(0, 0, 0, [0,0], highestClusterID+1) # New cluster created and gathering all the gates
+                    self.clusters[newCluster.id] = newCluster
+                    # logger.debug("New cluster created: {}".format(newCluster.id))
+                    highestClusterID += 1
+                    sumArea = 0
+                    for gate in net.gates.values():
+                        # Those <Gate> objects should be the same reference as self.gates
+                        # logger.debug("Primary gate in net: {} with cluster ID: {}".format(gate.name, gate.cluster.id))
+                        clustToDel = gate.cluster.id
+
+                        if clustToDel == newCluster.id:
+                            # The gate in this cluster has already been updated in the same net. Don't cover it twice.
+                            continue
+
+                        # logger.debug("Name: {}, cluster:{}, obj: {}".format(gate.name, gate.cluster.id, gate))
+                        for poorGate in self.clusters[clustToDel].gates.values():
+                            # logger.debug("Changed {} cluster ID from {} to {} (expected)".format(poorGate.name, poorGate.cluster.id, newCluster.id))
+                            poorGate.addCluster(newCluster)
+                            newCluster.addGate(poorGate)
+                            sumArea += poorGate.getArea()
+                            mergedGates.append(poorGate.name)
+                        clustersToDelete.add(clustToDel)
+                    newCluster.setGateArea(sumArea)
+                    newCluster.area = sumArea
+                    # self.clusters[newCluster.id] = newCluster
+                    # logger.debug(clustersToDelete)
+                    for i in clustersToDelete:
+                        del self.clusters[i]
+
+                    del newNetsToHide[newNetsToHide.index(netName)]
+
+        clusterListStr = ""
+        clusterInstancesStr = ""
+
+        # Change the cluster IDs so that there is no gap.
+        logger.debug("Update clusters ID to remove gaps.")
+        clustersTotal = len(self.clusters)
+        clusterKeys = list(self.clusters.keys())
+        for i, k in enumerate(clusterKeys):
+            cluster = self.clusters[k]
+            cluster.id = i
+            self.clusters[i] = cluster
+            clusterListStr += str(cluster.id) + "\n"
+            clusterInstancesStr += str(cluster.id)
+            for gate in cluster.gates.values():
+                clusterInstancesStr += " " + str(gate.name)
+            clusterInstancesStr += "\n"
+            # I only want to keep keys [0, clustersTotal - 1]
+            if k >= clustersTotal:
+                del self.clusters[k]
+
+        clustOnBottom = set()
+        for gateName in fixToBottom:
+            clustOnBottom.add(self.gates[gateName].cluster.id)
+        fixfileStr = ""
+        for i in range(len(self.clusters)):
+            if i in clustOnBottom:
+                fixfileStr += "0\n"
+            else:
+                fixfileStr += "-1\n"
+        with open("fixfile.hgr", 'w') as f:
+            f.write(fixfileStr)
+
+
+        logger.debug("Dumping {} clusters in Clusters.out".format(clustersTotal))
+        with open("Clusters.out", 'w') as file:
+            file.write(clusterListStr)
+
+        with open('ClustersInstances.out', 'w') as file:
+            file.write(clusterInstancesStr)
+
+
+
+
+
+
+        # while (minWL < objective and len(netNames) > 0 and not criticalRatioReached) :
+        #     # Select the shortest net.
+        #     net = self.nets[netNames[0]]
+
+        #     # Check that <net> is not entirely contained inside a single cluster.
+        #     # This is not handled the most efficient way, but it sure is easy.
+        #     singleCluster = True
+        #     netClusters = set()
+        #     for k in net.gates:
+        #         gate = net.gates[k]
+        #         netClusters.add(gate.cluster.id)
+        #         if len(netClusters) > 1:
+        #             singleCluster = False
+        #             break
+
+        #     # Net already in a single cluster, remove it and consider the next one.
+        #     if singleCluster:
+        #         del netNames[0]
+        #         del netLengths[0]
+        #         continue
+
+        #     clusterBase = None
+        #     # Merge all the clusters connected by the net.
+        #     for i, key in enumerate(net.gates):
+        #         gate = net.gates[key]
+        #         # First gate's cluster will serve as recipient for ther merger
+        #         if i == 0:
+        #             # Get the cluster.
+        #             clusterBase = gate.cluster
+        #         # If the gate is already in the base cluster, skip it.
+        #         elif clusterBase.id == gate.cluster.id:
+        #             continue
+        #         else:
+        #             clusterToMerge = gate.cluster
+        #             # for each gate in the net, identify the corresponding cluster.
+        #             for keyToMerge in clusterToMerge.gates:
+        #                 gateToMerge = clusterToMerge.gates[keyToMerge]
+        #             # for each gate in the cluster, add it to the recipient cluster.
+        #                 clusterBase.addGate(gateToMerge)
+        #             # Change the cluster object reference inside the gate object.
+        #                 gateToMerge.cluster = clusterBase
+        #             # Change the cluster area.
+        #             clusterBase.setGateArea(clusterBase.getGateArea() + clusterToMerge.getGateArea())
+        #             clusterBase.area = clusterBase.getGateArea()
+        #             # Remove the cluster from the Design list.
+        #             # If it's not in the dictionary, it simply means it was deleted in a previous step.
+        #             if clusterToMerge.id in list(self.clusters.keys()):
+        #                 del self.clusters[clusterToMerge.id]
+        #     minWL = netLengths[0]
+
+        #     # Once added, remove the net from the list.
+        #     # That way, the first net in the list is always the shortest.
+        #     del netNames[0]
+        #     del netLengths[0]
+
+        # clusterListStr = ""
+        # clusterInstancesStr = ""
+
+        # # Change the cluster IDs so that there is no gap.
+        # logger.debug("Update clusters ID to remove gaps.")
+        # clustersTotal = len(self.clusters)
+        # clusterKeys = list(self.clusters.keys())
+        # for i, k in enumerate(clusterKeys):
+        #     cluster = self.clusters[k]
+        #     cluster.id = i
+        #     self.clusters[i] = cluster
+        #     clusterListStr += str(cluster.id) + "\n"
+        #     clusterInstancesStr += str(cluster.id)
+        #     for gk in cluster.gates:
+        #         gate = cluster.gates[gk]
+        #         clusterInstancesStr += " " + str(gate.name)
+        #     clusterInstancesStr += "\n"
+        #     # I only want to keep keys [0, clustersTotal - 1]
+        #     if k >= clustersTotal:
+        #         del self.clusters[k]
+
+
+        # logger.debug("Dumping {} clusters in Clusters.out".format(clustersTotal))
+        # with open("Clusters.out", 'w') as file:
+        #     file.write(clusterListStr)
+
+        # with open('ClustersInstances.out', 'w') as file:
+        #     file.write(clusterInstancesStr)
+
 
     def progressiveWireLength(self, objective):
         """
         Create clusters until the <objective> wirelength is converted into inracluster wires.
+
+        DEPRECATED
+
         """
         logger.info("Clusterizing...")
 
@@ -2569,6 +2865,13 @@ class Design:
         plt.boxplot(points, showmeans=True, meanline=True, showfliers=True, flierprops=flierprops)
         # plt.xticks([i+1 for i in range(len(labels))],labels)
         plt.savefig('{}_WL-analysis_boxplot.pdf'.format(filenameInfo))
+        plt.figure()
+        plt.title("Wirelength distribution of all nets, inter-cluster and intra-cluster")
+        flierprops = dict(marker='o', markersize=1, linestyle='none')
+        plt.boxplot(points, showmeans=True, meanline=True, showfliers=True, flierprops=flierprops)
+        plt.yscale("log")
+        # plt.xticks([i+1 for i in range(len(labels))],labels)
+        plt.savefig('{}_WL-analysis_boxplot_logaxis.pdf'.format(filenameInfo))
         # plt.show()
 
 
@@ -2577,7 +2880,7 @@ class Design:
         # TODO Store the files in a seperate folder depending on the clustering.
         clusterAreaOut = "Name Type InstCount Boundary Area\n" # Clusters info to dump into 'ClustersArea.out'
 
-        clusterKeys = list(self.clusters.keys())
+        clusterKeys = sorted(list(self.clusters.keys()))
         for ck in clusterKeys:
             cluster = self.clusters[ck]
             # Set the line corresponding to this cluster for the information dumping into clustersArea.out
@@ -3075,6 +3378,16 @@ if __name__ == "__main__":
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ccx-in3-du10":
+        deffile = "CCX_in3/ccx_DU_10.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ccx-in3-du85":
+        deffile = "CCX_in3/ccx_DU_85.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
     print(stdCellsTech)
 
     if args["--design"]:
@@ -3089,7 +3402,7 @@ if __name__ == "__main__":
 
     if args["CLUSTER_AMOUNT"]:
         for n in args["CLUSTER_AMOUNT"]:
-            clustersTargets.append(int(n))
+            clustersTargets.append(float(n))
     else:
         clustersTargets = [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000]
 
@@ -3199,13 +3512,15 @@ if __name__ == "__main__":
         # Change the working directory to clustering dir.
         os.chdir(clustering_dir)
 
-        if clusteringMethod != "progressive-wl":
-            design.Reset()
+        # if clusteringMethod != "progressive-wl":
+        #     design.Reset()
+        design.Reset()
 
         logger.debug(design.width * design.height)
 
         if clustersTarget == 0 or clusteringMethod == "onetoone":
             design.clusterizeOneToOne()
+            design.clusterConnectivity()
         else:
             # Isn't there a cleaner way to call those functions base on clusteringMethod ?
             if clusteringMethod == "Naive_Geometric": 
@@ -3215,7 +3530,8 @@ if __name__ == "__main__":
                 design.randomClusterize(clustersTarget)
                 design.clusterConnectivity()
             elif clusteringMethod == "progressive-wl":
-                design.progressiveWireLength(clustersTarget)
+                # design.progressiveWireLength(clustersTarget)
+                design.newProgressiveWireLength(clustersTarget)
                 design.clusterConnectivity()
             elif clusteringMethod == "hierarchical-geometric":
                 design.hierarchicalGeometricClustering(clustersTarget)
