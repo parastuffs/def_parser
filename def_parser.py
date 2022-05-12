@@ -1,11 +1,11 @@
 """
 Usage:
-    def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>]
-                    [CLUSTER_AMOUNT ...] [--manhattanwl] [--mststwl] [--bb=<method>]
+    def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>] [CLUSTER_AMOUNT ...]
+                    [--manhattanwl] [--mmstwl] [--cnwl] [--bb=<method>]
                     [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
                     [--bold]
     def_parser.py (--help|-h)
-    def_parser.py   [--design=DESIGN] (--digest) [--manhattanwl] [--mststwl] [--bb=<method>]
+    def_parser.py   [--design=DESIGN] (--digest) [--manhattanwl] [--mmstwl] [--cnwl] [--bb=<method>]
                     [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
 
 Options:
@@ -22,7 +22,8 @@ Options:
     --seed=<seed>           RNG seed
     CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
     --manhattanwl           Compute nets wirelength as Manhattan distance.
-    --mststwl               Compute nets wirelength as MSTST.
+    --mmstwl                Compute nets wirelength as MMST (Mixed Minimal Steiner Tree).
+    --cnwl                  Compute nets wirelength as Closest Neighbourg (slower, but more accurate).
     --bb=<method>           Bounding box computation method: cell or pin.
     --digest                Print design's info and exit.
     --deffile=DEF           Path to DEF file, superseded by --design.
@@ -831,7 +832,7 @@ class Design:
     ##          ##  ##        ##      ##     ###  ##             ##      ##     ##  
     #########  ##    ##       ##      ##      ##  #########      ##       #######   
 
-    def extractNets(self, manhattanWireLength=False, mststWireLength=False):
+    def extractNets(self, manhattanWireLength=False, mmstWireLength=False, cnWireLength=False):
         """
         *Extract net routes:
         lefdefref v5.8, p.261.
@@ -941,7 +942,7 @@ class Design:
 
                                 netDetails = f.readline().strip()
                             # If Pin was not placed during PnR and is connected to something else...
-                            if pinDefaultCoord and len(net.gates) > 0:
+                            if pinDefaultCoord and (len(net.gates) + len(net.pins)) > 1:
                                 pinDefaultCoord = False
                                 self.setPinCoordinates(net)
 
@@ -1039,9 +1040,9 @@ class Design:
                                     netDetails = f.readline().strip()
 
                             #####
-                            # MSTST
+                            # MMST or closest neighbourg
                             #####
-                            elif mststWireLength:
+                            elif mmstWireLength or cnWireLength:
                                 cellsToConnect = list(net.gatePins.keys())
                                 # logger.debug("In net {}, Cells to connect: {}".format(net.name, cellsToConnect))
 
@@ -1061,15 +1062,15 @@ class Design:
                                         points.append(gate.absoluteCoordinate(port.center))
                                         # logger.debug("Cell port center at {}".format(points[-1]))
 
-                                netLength = self.MSTSTwl(points)
+                                if mmstWireLength:
+                                    netLength = min(self.MSTSTwl(points),self.MMSTwl(points))
+                                elif cnWireLength:
+                                    netLength = self.netlengthClosestNeighbourg(points[:])
                                 # logger.debug("computed net length: {}".format(netLength))
                                 # Skip the rest of the details
                                 while not ';' in netDetails:
                                     netDetails = f.readline().strip()
                                 if netLength == 0 and len(points) > 1:
-                                    # logger.debug("{}: MSTST length of 0...".format(net.name))
-                                    # logger.debug("\tPoints in net: {}".format(points))
-                                    # logger.debug("\tGates in net: {}".format(cellsToConnect))
                                     cellThatActuallyArePins = 0
                                     for cell in cellsToConnect:
                                         if cell in self.gates:
@@ -1078,14 +1079,8 @@ class Design:
                                             gatePin = macros[stdCellName].pins[net.gatePins[cell]]
                                             # Take the first port. It's easier to handle.
                                             port = gatePin.ports[0]
-                                            # logger.debug("\t{} coordinates: {}".format(cell, [gate.x, gate.y]))
-                                            # logger.debug("\tPort center: {}".format(port.center))
-                                            # logger.debug("\tOrientation: {}".format(gate.orientation))
                                         elif cell in self.pins:
                                             cellThatActuallyArePins += 1
-                                            # logger.debug("\t{} is a PIN.".format(cell))
-                                            # if not self.pins[cell].placed:
-                                                # logger.debug("\t\tIt was NOT placed.")
                                     if cellThatActuallyArePins == len(cellsToConnect):
                                         logger.debug("\tNet '{}' is only PINS that were not placed, skip net creation.".format(net.name))
                                         line = f.readline()
@@ -1260,13 +1255,72 @@ class Design:
         float
             Size of the tree
         """
-        # 1. Find the median y coordinate
+        wirelengths = [0,0] # horizontal single trunk, then vertical.
         if len(points) > 0:
+            # 1. Find the median y coordinate
             trunk = statistics.median([i[1] for i in points])
-            wirelength = sum([abs(trunk - i[1]) for i in points])
-            wirelength += max([i[0] for i in points]) - min([i[0] for i in points])
-        else:
-            wirelength = 0
+            wirelengths[0] = sum([abs(trunk - i[1]) for i in points])
+            wirelengths[0] += max([i[0] for i in points]) - min([i[0] for i in points])
+
+            # 2. Find the median x coordinate
+            trunk = statistics.median([i[0] for i in points])
+            wirelengths[1] = sum([abs(trunk - i[0]) for i in points])
+            wirelengths[1] += max([i[1] for i in points]) - min([i[1] for i in points])
+        return min(wirelengths)
+
+    def MMSTwl(self, points):
+        """
+        Compute a Minimal Multiple Trunks Steiner Tree.
+        First sort all the coordinates according to their ordinate.
+        Then for each pair of points, build a small MSTST with a single trunk.
+        This method should be closer to an actual Minimal rectilinear Steiner tree obtained during routing,
+        especially for high-fanout nets.
+
+        Parameters:
+        -----------
+        points : List
+            List of lists like so:
+            [[x1,y1],...,[xn,yn]]
+
+        Return:
+        float
+            Size of the tree
+        """
+        wirelengths = [0,0,0] # 0: sorted on y, 1: sorted on x, 2: sorted on (x+y)
+        points.sort(key=lambda x:x[1]) # sort based on ordinate, this post explains it so well: https://stackoverflow.com/a/42966511/3973030
+        if len(points) > 0:
+            for i in range(len(points)-1):
+                wirelengths[0] += self.MSTSTwl([points[i],points[i+1]])
+        points.sort(key=lambda x:x[0]) # sort based on abscissa
+        if len(points) > 0:
+            for i in range(len(points)-1):
+                wirelengths[1] += self.MSTSTwl([points[i],points[i+1]])
+        points.sort(key=lambda x:x[0]+x[1]) # sort based on abscissa + ordinate. No ideal as we have a symetry of axis y=x for the sum values. Yet, it should group some close points together.
+        if len(points) > 0:
+            for i in range(len(points)-1):
+                wirelengths[2] += self.MSTSTwl([points[i],points[i+1]])
+        return min(wirelengths)
+
+    def netlengthClosestNeighbourg(self, points):
+        """
+        """
+        wirelength = 0
+        points.sort(key = lambda x: x[0]+x[1])
+        origin = points[0]
+        points.remove(origin)
+
+        while len(points) > 0:
+            # find closest neighbourg to origin
+            distance = float('inf')
+            candidate = None
+            for neighbour in points:
+                newDist = abs(origin[0] - neighbour[0]) + abs(origin[1] - neighbour[1])
+                if newDist < distance:
+                    distance = newDist
+                    candidate = neighbour[:]
+            wirelength += distance
+            points.remove(candidate)
+            origin = candidate[:]
         return wirelength
 
     def segmentLen(self):
@@ -3225,7 +3279,8 @@ if __name__ == "__main__":
     clustersTargets = []
     DIGESTONLY = False
     manhattanWireLength = False
-    mststWireLength = False
+    mmstWireLength = False
+    cnWireLength = False
     bbMethod = "pin"
     bold = False
 
@@ -3420,8 +3475,10 @@ if __name__ == "__main__":
         manhattanWireLength = True
 
 
-    if args["--mststwl"]:
-        mststWireLength = True
+    if args["--mmstwl"]:
+        mmstWireLength = True
+    if args["--cnwl"]:
+        cnWireLength = True
 
     if args["--bb"]:
         bbMethod = args["--bb"]
@@ -3483,7 +3540,7 @@ if __name__ == "__main__":
     design.extractPins()
     # design.Digest()
 
-    design.extractNets(manhattanWireLength, mststWireLength)
+    design.extractNets(manhattanWireLength, mmstWireLength, cnWireLength)
     if args["--segments"]:
         design.segmentLen()
     design.sortNets()
