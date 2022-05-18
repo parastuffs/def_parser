@@ -11,7 +11,7 @@ Usage:
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
                             spc-2020, spc-bufferless-2020, ccx, ccx-in3, ccx-in3-du10, ccx-in3-du85,
-                            ldpc-4x4-serial, ldpc-4x4,
+                            ldpc-4x4-serial, ldpc-4x4, ldpc-4x4-serial-2022,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
                             mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
                             mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
@@ -94,7 +94,7 @@ output_dir = ""
 
 logger = logging.getLogger('default')
 
-SIG_SKIP = False
+SIG_SKIP = True
 
 # Skipping probability, [0,1]. Probability to skip a net durring the progressive-wl method.
 SKIP_PROB = 0.1
@@ -1626,7 +1626,7 @@ class Design:
         Hierarchical clustering: split the design in two, then each part in two again, etc.
         """
         global SIG_SKIP
-        SIG_SKIP = False
+        SIG_SKIP = True
 
         # First, find the closest power of two from clustersTarget.
         if clustersTarget - pow(2,floor(log(clustersTarget, 2))) < pow(2,ceil(log(clustersTarget, 2))) - clustersTarget:
@@ -1718,7 +1718,7 @@ class Design:
         First create all the clusters with default values.
         """
         clusterListStr = "" # Clusters names list to dump into 'Clusters.out'
-        for x in range(clustersTarget):
+        for x in range(int(clustersTarget)):
             # TODO What will be the impact of the fact that the cluster has no geometrical meaning, now?
             # What should I put for the coordinates?
             newCluster = Cluster(0, 0, 0, [0, 0], x)
@@ -2023,95 +2023,6 @@ class Design:
 
         with open('ClustersInstances.out', 'w') as file:
             file.write(clusterInstancesStr)
-
-
-
-
-
-
-        # while (minWL < objective and len(netNames) > 0 and not criticalRatioReached) :
-        #     # Select the shortest net.
-        #     net = self.nets[netNames[0]]
-
-        #     # Check that <net> is not entirely contained inside a single cluster.
-        #     # This is not handled the most efficient way, but it sure is easy.
-        #     singleCluster = True
-        #     netClusters = set()
-        #     for k in net.gates:
-        #         gate = net.gates[k]
-        #         netClusters.add(gate.cluster.id)
-        #         if len(netClusters) > 1:
-        #             singleCluster = False
-        #             break
-
-        #     # Net already in a single cluster, remove it and consider the next one.
-        #     if singleCluster:
-        #         del netNames[0]
-        #         del netLengths[0]
-        #         continue
-
-        #     clusterBase = None
-        #     # Merge all the clusters connected by the net.
-        #     for i, key in enumerate(net.gates):
-        #         gate = net.gates[key]
-        #         # First gate's cluster will serve as recipient for ther merger
-        #         if i == 0:
-        #             # Get the cluster.
-        #             clusterBase = gate.cluster
-        #         # If the gate is already in the base cluster, skip it.
-        #         elif clusterBase.id == gate.cluster.id:
-        #             continue
-        #         else:
-        #             clusterToMerge = gate.cluster
-        #             # for each gate in the net, identify the corresponding cluster.
-        #             for keyToMerge in clusterToMerge.gates:
-        #                 gateToMerge = clusterToMerge.gates[keyToMerge]
-        #             # for each gate in the cluster, add it to the recipient cluster.
-        #                 clusterBase.addGate(gateToMerge)
-        #             # Change the cluster object reference inside the gate object.
-        #                 gateToMerge.cluster = clusterBase
-        #             # Change the cluster area.
-        #             clusterBase.setGateArea(clusterBase.getGateArea() + clusterToMerge.getGateArea())
-        #             clusterBase.area = clusterBase.getGateArea()
-        #             # Remove the cluster from the Design list.
-        #             # If it's not in the dictionary, it simply means it was deleted in a previous step.
-        #             if clusterToMerge.id in list(self.clusters.keys()):
-        #                 del self.clusters[clusterToMerge.id]
-        #     minWL = netLengths[0]
-
-        #     # Once added, remove the net from the list.
-        #     # That way, the first net in the list is always the shortest.
-        #     del netNames[0]
-        #     del netLengths[0]
-
-        # clusterListStr = ""
-        # clusterInstancesStr = ""
-
-        # # Change the cluster IDs so that there is no gap.
-        # logger.debug("Update clusters ID to remove gaps.")
-        # clustersTotal = len(self.clusters)
-        # clusterKeys = list(self.clusters.keys())
-        # for i, k in enumerate(clusterKeys):
-        #     cluster = self.clusters[k]
-        #     cluster.id = i
-        #     self.clusters[i] = cluster
-        #     clusterListStr += str(cluster.id) + "\n"
-        #     clusterInstancesStr += str(cluster.id)
-        #     for gk in cluster.gates:
-        #         gate = cluster.gates[gk]
-        #         clusterInstancesStr += " " + str(gate.name)
-        #     clusterInstancesStr += "\n"
-        #     # I only want to keep keys [0, clustersTotal - 1]
-        #     if k >= clustersTotal:
-        #         del self.clusters[k]
-
-
-        # logger.debug("Dumping {} clusters in Clusters.out".format(clustersTotal))
-        # with open("Clusters.out", 'w') as file:
-        #     file.write(clusterListStr)
-
-        # with open('ClustersInstances.out', 'w') as file:
-        #     file.write(clusterInstancesStr)
 
 
     def progressiveWireLength(self, objective):
@@ -2703,43 +2614,45 @@ class Design:
         interNets = dict() # Net spanning several clusters {Net.name : Net}
         intraNets = dict() # Net fully contained in a single cluster {Net.name : Net}
 
-        for ck in self.clusters:
-            cluster = self.clusters[ck]
-            connectivity[cluster.id] = []
-            connectivityUniqueNet[cluster.id] = []
-            clusterNetSet[cluster.id] = set()
-            # print "Source cluster: " + str(cluster.id)
-            for key in cluster.gates:
-                for netKey in cluster.gates[key].nets:
-                    net = cluster.gates[key].nets[netKey]
-                    for subkey in net.gates:
-                        subgateName = net.gates[subkey].name
-                        if RAW_INTERCONNECTIONS:
-                            # Simply check that the gate selected is not in the same cluster.
-                            if cluster.gates.get(subgateName) == None:
-                                connectivity[cluster.id].append(0)
-                                if netKey not in clusterNetSet[cluster.id]:
-                                    # If the net is not yet registered in the cluster, add it.
-                                    clusterNetSet[cluster.id].add(netKey)
-                                    connectivityUniqueNet[cluster.id].append(0)
-                                    if spaningNetsUnique.get(netKey) == None:
-                                        # If the net is not registered as spaning over several clusters, add it.
-                                        spaningNetsUnique[netKey] = net
-                                        interNets[net.name] = net
+        with alive_bar(len(self.clusters)) as bar:
+            for ck in self.clusters:
+                bar()
+                cluster = self.clusters[ck]
+                connectivity[cluster.id] = []
+                connectivityUniqueNet[cluster.id] = []
+                clusterNetSet[cluster.id] = set()
+                # print "Source cluster: " + str(cluster.id)
+                for key in cluster.gates:
+                    for netKey in cluster.gates[key].nets:
+                        net = cluster.gates[key].nets[netKey]
+                        for subkey in net.gates:
+                            subgateName = net.gates[subkey].name
+                            if RAW_INTERCONNECTIONS:
+                                # Simply check that the gate selected is not in the same cluster.
+                                if cluster.gates.get(subgateName) == None:
+                                    connectivity[cluster.id].append(0)
+                                    if netKey not in clusterNetSet[cluster.id]:
+                                        # If the net is not yet registered in the cluster, add it.
+                                        clusterNetSet[cluster.id].add(netKey)
+                                        connectivityUniqueNet[cluster.id].append(0)
+                                        if spaningNetsUnique.get(netKey) == None:
+                                            # If the net is not registered as spaning over several clusters, add it.
+                                            spaningNetsUnique[netKey] = net
+                                            interNets[net.name] = net
 
-                        else:
-                            if net.gates[subkey].cluster.id != cluster.id:
-                                if net.gates[subkey].cluster.gates.get(subgateName) != None:
-                                        connectivity[cluster.id].append(net.gates[subkey].cluster.id)
-                                        # conMatrix[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
-                                        if netKey not in clusterNetSet[cluster.id]:
-                                            clusterNetSet[cluster.id].add(netKey)
-                                            connectivityUniqueNet[cluster.id].append(net.gates[subkey].cluster.id)
-                                            # conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
-                                            if spaningNetsUnique.get(netKey) == None:
-                                                # If the net is not registered as spaning over several clusters, add it.
-                                                spaningNetsUnique[netKey] = net
-                                                interNets[net.name] = net
+                            else:
+                                if net.gates[subkey].cluster.id != cluster.id:
+                                    if net.gates[subkey].cluster.gates.get(subgateName) != None:
+                                            connectivity[cluster.id].append(net.gates[subkey].cluster.id)
+                                            # conMatrix[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                            if netKey not in clusterNetSet[cluster.id]:
+                                                clusterNetSet[cluster.id].add(netKey)
+                                                connectivityUniqueNet[cluster.id].append(net.gates[subkey].cluster.id)
+                                                # conMatrixUniqueNet[cluster.id-1][net.gates[subkey].cluster.id-1] += 1
+                                                if spaningNetsUnique.get(netKey) == None:
+                                                    # If the net is not registered as spaning over several clusters, add it.
+                                                    spaningNetsUnique[netKey] = net
+                                                    interNets[net.name] = net
 
         """
         This a very primitive connectivity metric.
@@ -3334,6 +3247,11 @@ if __name__ == "__main__":
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
+    elif args["--design"] == "ldpc-4x4-serial-2022":
+        deffile = "LDPC-4x4-2022/DU75_NonLegal-20220516T073622Z-001/ldpc_4x4_serial_NonLegal.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
     elif args["--design"] == "ldpc-4x4":
         deffile = "ldpc_4x4/ldpc-4x4.def"
         MEMORY_MACROS = False
@@ -3589,14 +3507,16 @@ if __name__ == "__main__":
             elif clusteringMethod == "progressive-wl":
                 # design.progressiveWireLength(clustersTarget)
                 design.newProgressiveWireLength(clustersTarget)
-                design.clusterConnectivity()
+                if not SIG_SKIP:
+                    design.clusterConnectivity()
             elif clusteringMethod == "hierarchical-geometric":
                 design.hierarchicalGeometricClustering(clustersTarget)
                 if not SIG_SKIP:
                     design.clusterConnectivity()
             elif "kmeans" in clusteringMethod:
-                design.kmeans(clustersTarget, clusteringMethod)
-                design.clusterConnectivity()
+                design.kmeans(int(clustersTarget), clusteringMethod)
+                if not SIG_SKIP:
+                    design.clusterConnectivity()
             elif clusteringMethod == "metal":
                 design.metalClustering(clustersTarget)
                 design.clusterConnectivity()
