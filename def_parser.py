@@ -11,7 +11,8 @@ Usage:
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
                             spc-2020, spc-bufferless-2020, ccx, ccx-in3, ccx-in3-du10, ccx-in3-du85,
-                            ldpc-4x4-serial, ldpc-4x4, ldpc-4x4-serial-2022,
+                            ldpc-4x4-serial, ldpc-4x4, ldpc-4x4-serial-2022, ldpc-4x4-full-2022, 
+                            ldpc-4x4-full-noFE-2022,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
                             mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
                             mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
@@ -930,6 +931,7 @@ class Design:
                                             logger.error("netdetails: {}".format(netDetails))
                                             logger.error("Gate we are trying to add: '{}'".format(gateBlockSplit[1]))
                                             logger.error("For the net: {}".format(net.name))
+                                            logger.error("Quitting.")
                                             sys.exit()
                                         net.addGate(gate)
                                         gate.addNet(net)
@@ -945,6 +947,14 @@ class Design:
                             if pinDefaultCoord and (len(net.gates) + len(net.pins)) > 1:
                                 pinDefaultCoord = False
                                 self.setPinCoordinates(net)
+
+                            if (len(net.gates) + len(net.pins)) == 0:
+                                # Net connected to nothing, skip it
+                                # Might happen when removing gates from a design step,
+                                # such as FE* buffer removal after placement,
+                                # then nets are kept back but connected to nothing.
+                                line = f.readline().strip()
+                                continue
 
                             netLength = 0
 
@@ -1047,6 +1057,7 @@ class Design:
                                 # logger.debug("In net {}, Cells to connect: {}".format(net.name, cellsToConnect))
 
                                 points = []
+                                # logger.debug("Net: {}".format(net.name))
                                 for cell in net.gatePins.keys():
                                     # If the cell is actually a pin
                                     if net.gatePins[cell] == "PIN":
@@ -1927,30 +1938,31 @@ class Design:
                     # Check that <net> is not entirely contained inside a single cluster.
                     # This is not handled the most efficient way, but it sure is easy.
                     # This might happen as a side effect of merging some clusters together.
-                    singleCluster = True
-                    netClusters = set()
-                    for gate in net.gates.values():
-                        netClusters.add(gate.cluster.id)
-                        if len(netClusters) > 1:
-                            singleCluster = False
-                            break
+                    # singleCluster = True
+                    # netClusters = set()
+                    # for gate in net.gates.values():
+                    #     netClusters.add(gate.cluster.id)
+                    #     if len(netClusters) > 1:
+                    #         singleCluster = False
+                    #         break
+                    netClusters = set([gate.cluster.id for gate in net.gates.values()])
                     # Net already in a single cluster, remove it and consider the next one.
-                    if singleCluster:
+                    if len(netClusters) == 1:
                         del newNetsToHide[newNetsToHide.index(netName)]
                         continue
                     #########################################################################
 
-                    ######################################################################################
-                    for gate in net.gates.keys():
-                        # Check if a gate connected to the net has already been merged in this iteration.
-                        # We don't add them to the list just yet, this is just a first verification.
-                        if gate in mergedGates:
-                            skip = True
-                            break
-                    if skip:
-                        # Skip this net for this iteration.
-                        continue
-                    ######################################################################################
+                    # ######################################################################################
+                    # for gate in net.gates.keys():
+                    #     # Check if a gate connected to the net has already been merged in this iteration.
+                    #     # We don't add them to the list just yet, this is just a first verification.
+                    #     if gate in mergedGates:
+                    #         skip = True
+                    #         break
+                    # if skip:
+                    #     # Skip this net for this iteration.
+                    #     continue
+                    # ######################################################################################
 
                     clustersToDelete = set() # List of clusters we need to delete post-merger
                     newCluster = Cluster(0, 0, 0, [0,0], highestClusterID+1) # New cluster created and gathering all the gates
@@ -3249,6 +3261,16 @@ if __name__ == "__main__":
         stdCellsTech = "7nm"
     elif args["--design"] == "ldpc-4x4-serial-2022":
         deffile = "LDPC-4x4-2022/DU75_NonLegal-20220516T073622Z-001/ldpc_4x4_serial_NonLegal.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-full-2022":
+        deffile = "LDPC-4x4-2022/Non-legal/ldpc_4x4_full_NoLegal.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-full-noFE-2022":
+        deffile = "LDPC-4x4-2022/Full_No-FE/ldpc_4x4_full_noFE.def"
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2021-12"
