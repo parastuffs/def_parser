@@ -11,8 +11,10 @@ Usage:
 Options:
     --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
                             spc-2020, spc-bufferless-2020, ccx, ccx-in3, ccx-in3-du10, ccx-in3-du85,
-                            ldpc-4x4-serial, ldpc-4x4, ldpc-4x4-serial-2022, ldpc-4x4-full-2022, 
-                            ldpc-4x4-full-noFE-2022,
+                            ldpc-4x4-serial, ldpc-4x4, 
+                            ldpc-4x4-serial-2022, ldpc-4x4-serial-delBuffPy-2022, ldpc-4x4-serial-delBuff-2022, ldpc-4x4-serial-pre-CTS-2022,
+                            ldpc-4x4-full-2022, ldpc-4x4-full-noFE-2022, ldpc-4x4-full-delBUFF-2022, 
+                            ldpc-4x4-full-preCTS-2022, ldpc-4x4-full-delBuffPy-2022,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
                             mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
                             mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
@@ -588,7 +590,7 @@ class Design:
                     # TODO: try to need less try/except
                     if endOfComponents:
                         break # Dirty, but I don't care
-                    if inComponents and not 'END COMPONENTS' in line and not 'HALO' in line:
+                    if inComponents and not 'END COMPONENTS' in line and not 'HALO' in line and not 'PROPERTY' in line:
                         # Parse the line and extract the cell
                         split = line.split(' ')
                         # print split
@@ -657,6 +659,8 @@ class Design:
                                     self.addGate(gate)
                             else:
                                 self.addGate(gate)
+                            # if gate.stdCell == "FRONT_BUMP":
+                            #     uBumpStr += "{} {} {}\n".format(gate.name, gate.x, gate.y)
                             # endOfComponents = True
 
 
@@ -693,6 +697,8 @@ class Design:
         logger.debug("Reading the def to extract pins.")
 
         inPins = False
+
+        uBumpStr = "BumpName x y\n"
 
         with open(deffile, 'r') as f:
             line = f.readline()
@@ -756,6 +762,12 @@ class Design:
                         self.pins[specialnet].setX(self.gates[bumpName].x)
                         self.pins[specialnet].setY(self.gates[bumpName].y)
                         self.pins[specialnet].placed = True
+                        if self.gates[bumpName].stdCell == "FRONT_BUMP":
+                            uBumpStr += "{} {} {}\n".format(self.gates[bumpName].name, self.gates[bumpName].x, self.gates[bumpName].y)
+        uBumpStrfname = "uBumps.out"
+        logger.info("Exporting cells dimensions to {} ({} ubumps)".format(uBumpStrfname, len(uBumpStr.split('\n'))-1))
+        with open(uBumpStrfname, 'w') as f:
+            f.write(uBumpStr)
 
 
 
@@ -3264,6 +3276,22 @@ if __name__ == "__main__":
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-serial-delBuffPy-2022":
+        deffile = "/home/para/dev/Kooky-Kingfisher/2022-05-30_09-26-37_ldpc_4x4_serial_place/ldpc_4x4_serial_place_noBuffers.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-serial-pre-CTS-2022":
+        # deffile = "LDPC-4x4-2022/ldpc_4x4_serial_place.def"
+        deffile = "LDPC-4x4-2022/ldpc_4x4_serial_delBufV2/ldpc_4x4_serial_withBuff_new.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-serial-delBuff-2022":
+        deffile = "LDPC-4x4-2022/ldpc_4x4_serial_delBuff/ldpc_4x4_serial.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
     elif args["--design"] == "ldpc-4x4-full-2022":
         deffile = "LDPC-4x4-2022/Non-legal/ldpc_4x4_full_NoLegal.def"
         MEMORY_MACROS = False
@@ -3271,6 +3299,21 @@ if __name__ == "__main__":
         stdCellsTech = "in3_2021-12"
     elif args["--design"] == "ldpc-4x4-full-noFE-2022":
         deffile = "LDPC-4x4-2022/Full_No-FE/ldpc_4x4_full_noFE.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-full-delBUFF-2022":
+        deffile = "LDPC-4x4-2022/ldpc_4x4_full_delBUFF/ldpc_4x4_full_delBUFF.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-full-preCTS-2022":
+        deffile = "LDPC-4x4-2022/ldpc_4x4_full_preCTS.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "ldpc-4x4-full-delBuffPy-2022":
+        deffile = "/home/para/dev/Kooky-Kingfisher/2022-05-29_20-16-11_ldpc_4x4_full_preCTS/ldpc_4x4_full_preCTS_noBuffers.def"
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2021-12"
@@ -3517,7 +3560,8 @@ if __name__ == "__main__":
 
         if clustersTarget == 0 or clusteringMethod == "onetoone":
             design.clusterizeOneToOne()
-            design.clusterConnectivity()
+            if not SIG_SKIP:
+                design.clusterConnectivity()
         else:
             # Isn't there a cleaner way to call those functions base on clusteringMethod ?
             if clusteringMethod == "Naive_Geometric": 
