@@ -1,14 +1,17 @@
 """
 Usage:
-    heatmap.py (-d <dir>) [-c <dir>] [-p <file>] [-n <file>]
+    heatmap.py (-d <dir>) [-c <dir>] [-p <file>] [-n <file>] [-r <max-res>] [--3D]
     heatmap.py (--help|-h)
 
 Options:
-    -d <path>   Path to design folder
-    -c <dir>    Sub dir from <path> to a folder containing ClustersInstances.out
-    -p <file>   Partition file with lines such as '<cell name> <O/1>' (.part)
-    -n <file>   File with nets cut by partition (connectivity_partition.txt)
-    -h --help   Print this help
+    -d <path>       Path to design folder
+    -c <dir>        Sub dir from <path> to a folder containing ClustersInstances.out
+    -p <file>       Partition file with lines such as '<cell name> <O/1>' (.part)
+    -n <file>       File with nets cut by partition (connectivity_partition.txt)
+    -r <max-res>    Maximum pixel resolution. A 4x4 display uses max-res/2, /5 and /10 as well.
+                    Default: 300
+    --3D            Display 3D pins as yellow pixels, FRONT_BUMP instances
+    -h --help       Print this help
 """
 
 from math import *
@@ -34,18 +37,24 @@ except locale.Error:
 RANDOM_SEED = 0 # Set to 0 if no seed is used, otherwise set to seed value.
 
 
-def loadDesign():
+def loadDesign(display3DPins):
     """
     CellSizes.out:
         <cell name> <width [float]> <height [float]>
     CellCoord.out:
         <net name>, <cell name>, <x [float]>, <y [float]>
 
+    Parameters:
+    -----------
+    display3DPins : boolean
+        If true, load pins
+
     Return
     ------
     cells : {}
     maxX : float
     maxY : float
+    pins : []
     """
     cells = {} # {cell name: [x,y,width, height]}
     maxX = 0
@@ -59,20 +68,31 @@ def loadDesign():
         lines = f.readlines()
         for line in lines[1:]:
             cellName = line.split(' ')[0]
-            cells[cellName].extend([cells[cellName][0] + float(line.split(' ')[1]), cells[cellName][1] + float(line.split(' ')[2])])
-            maxX = max(maxX, cells[cellName][2])
-            maxY = max(maxY, cells[cellName][3])
-    return cells, maxX, maxY
+            if cellName in cells:
+                # Continue only if the cellName has a coordinate in the cells dictionary.
+                # It might happen that is does not, such as 3D bump in 3D ICs.
+                cells[cellName].extend([cells[cellName][0] + float(line.split(' ')[1]), cells[cellName][1] + float(line.split(' ')[2])])
+                maxX = max(maxX, cells[cellName][2])
+                maxY = max(maxY, cells[cellName][3])
 
-def generateHeatmap(cells, maxX, maxY, dimension=300):
+    pins = []
+    if display3DPins:
+        with open("uBumps.out", 'r') as f:
+            lines = f.readlines()
+        for line in lines[1:]:
+            pins.append([float(line.split(' ')[1]), float(line.split(' ')[2])])
+    return cells, maxX, maxY, pins
+
+def generateHeatmap(cells, maxX, maxY, dimension=300, display3DPins=False, pins=None):
     """
     Parameters
     ----------
     cells : {cell name : [x1, y1, x2, y2]}
     maxX : float
     maxY : float
+    display3DPins : boolean
+    pins : [[x, y]]
     """
-
 
 
     fig, axs = plt.subplots(2,2)
@@ -82,6 +102,8 @@ def generateHeatmap(cells, maxX, maxY, dimension=300):
         imgH = int(imgW * (maxY/maxX))
 
         data = np.zeros(shape=(imgW+2,imgH+2))
+        pinsX = []
+        pinsY = []
 
         for coordinates in cells.values():
             xl = coordinates[0]
@@ -94,6 +116,11 @@ def generateHeatmap(cells, maxX, maxY, dimension=300):
             for i in range(xl, xu+1):
                 for j in range(yl, yu+1):
                     data[i,j] += 1
+        if display3DPins:
+            for pin in pins:
+                pinsX.append(math.floor(pin[0] * imgW / maxX))
+                pinsY.append(math.floor(pin[1] * imgH / maxY))
+
 
         logger.debug("max in data: {}".format(data.max()))
 
@@ -112,11 +139,15 @@ def generateHeatmap(cells, maxX, maxY, dimension=300):
         ax.set_xlim([0,imgW+2])
         ax.set_ylim([0,imgH+2])
         c = ax.pcolormesh(x, y, data, cmap='Reds', shading='auto', vmin=data.min(), vmax=data.max())
+        # ax.plot([10], marker='', color='y')
+        if display3DPins:
+            ax.scatter(pinsX, pinsY, marker='.', color='y', s=1)
         ax.set_title('Resolution: {}'.format(floor(dimension)))
         ax.axis('equal')
         fig.colorbar(c, ax=ax)
+    fig.set_size_inches(11, 9)
     fig.tight_layout()
-    plt.savefig('{}_{}_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])))
+    plt.savefig('{}_{}_heatmap.png'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), "_".join(os.getcwd().split(os.sep)[-1].split('_')[2:])), dpi=150)
     plt.show()
 
 def colorizeClusters(clustDir, cells, dimension=1000):
@@ -235,8 +266,8 @@ def colorizePartitions(partFile, cells, maxX, maxY, netCutFile, dimension=1000):
         for net in netPoints:
             bar()
             # Ugly patch to ignore clock net
-            if not "clk" in net and not "rst" in net:
-                logger.debug("Net: {}, len: {}".format(net, len(netPoints[net])))
+            if not "clk" in net and not "rst" in net and not "clock" in net:
+                # logger.debug("Net: {}, len: {}".format(net, len(netPoints[net])))
                 points = netPoints[net]
                 color = random.choice(list(mcolors.XKCD_COLORS))
                 for i in range(len(points)):
@@ -263,6 +294,8 @@ if __name__ == "__main__":
     clustDir = None
     partFile = None
     netCutFile = None
+    dimension=300
+    display3DPins = False
 
     args = docopt(__doc__)
     if args["-d"]:
@@ -273,6 +306,12 @@ if __name__ == "__main__":
         partFile = args["-p"]
     if args["-n"]:
         netCutFile = args["-n"]
+    if args["-r"]:
+        dimension = int(args["-r"])
+    if args["--3D"]:
+        display3DPins = True
+
+
 
     # Load base config from conf file.
     logging.config.fileConfig('log.conf')
@@ -296,11 +335,11 @@ if __name__ == "__main__":
 
     logger.info("Seed: {}".format(RANDOM_SEED))
 
-    cells, maxX, maxY = loadDesign()
+    cells, maxX, maxY, pins = loadDesign(display3DPins)
 
     if clustDir:
-        colorizeClusters(clustDir, cells)
+        colorizeClusters(clustDir, cells,dimension)
     elif partFile:
-        colorizePartitions(partFile, cells, maxX, maxY, netCutFile)
+        colorizePartitions(partFile, cells, maxX, maxY, netCutFile,dimension)
     else:
-        generateHeatmap(cells, maxX, maxY)
+        generateHeatmap(cells, maxX, maxY,dimension, display3DPins, pins)
