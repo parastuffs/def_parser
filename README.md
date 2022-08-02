@@ -1,5 +1,44 @@
 # DEF parser and clustering
 
+```
+Usage:
+    def_parser.py   [--design=DESIGN] [--clust-meth=METHOD] [--seed=<seed>] [CLUSTER_AMOUNT ...]
+                    [--manhattanwl] [--mmstwl] [--cnwl] [--bb=<method>]
+                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
+                    [--bold]
+    def_parser.py (--help|-h)
+    def_parser.py   [--design=DESIGN] (--digest) [--manhattanwl] [--mmstwl] [--cnwl] [--bb=<method>]
+                    [--deffile=DEF] [--udm=VALUE] [--leftech=TECH] [--segments]
+
+Options:
+    --design=DESIGN         Design to cluster. One amongst ldpc, ldpc-2020, flipr, boomcore, boomcore-2020, spc,
+                            spc-2020, spc-bufferless-2020, ccx, ccx-in3, ccx-in3-du10, ccx-in3-du85,
+                            ldpc-4x4-serial, ldpc-4x4, 
+                            ldpc-4x4-serial-2022, ldpc-4x4-serial-delBuffPy-2022, ldpc-4x4-serial-delBuff-2022, ldpc-4x4-serial-pre-CTS-2022,
+                            ldpc-4x4-full-2022, ldpc-4x4-full-noFE-2022, ldpc-4x4-full-delBUFF-2022, 
+                            ldpc-4x4-full-preCTS-2022, ldpc-4x4-full-delBuffPy-2022,
+                            smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
+                            mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
+                            mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
+                            mempool-tile-pp, mempool-tile-pp-noFE.
+    --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
+                            Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random, onetoone.
+                            or metal. [default: random]
+    --seed=<seed>           RNG seed
+    CLUSTER_AMOUNT ...      Number of clusters to build. Multiple arguments allowed.
+    --manhattanwl           Compute nets wirelength as Manhattan distance.
+    --mmstwl                Compute nets wirelength as MMST (Mixed Minimal Steiner Tree).
+    --cnwl                  Compute nets wirelength as Closest Neighbourg (slower, but more accurate).
+    --bb=<method>           Bounding box computation method: cell or pin.
+    --digest                Print design's info and exit.
+    --deffile=DEF           Path to DEF file, superseded by --design.
+    --udm=VALUE             UNITS DISTANCE MICRONS, e.g. 10000, superseded by --design
+    --leftech=TECH          LEF tech used, e.g. 7nm, superseded by --design
+    --segments              Compute the Manhattan segment length of each net into WLnets_wegments.out
+    --bold                  Suppress the clustering sanity checks
+    -h --help               Print this help
+```
+
 ## Input files
 
 ### DEF
