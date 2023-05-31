@@ -15,10 +15,13 @@ Options:
                             ldpc-4x4-serial-2022, ldpc-4x4-serial-delBuffPy-2022, ldpc-4x4-serial-delBuff-2022, ldpc-4x4-serial-pre-CTS-2022,
                             ldpc-4x4-full-2022, ldpc-4x4-full-noFE-2022, ldpc-4x4-full-delBUFF-2022, 
                             ldpc-4x4-full-preCTS-2022, ldpc-4x4-full-delBuffPy-2022,
+                            ldpc-4x4-full-2023,
                             smallboom, armm0,msp430, megaboom-pp-bl, megaboom-pp-bt, 
                             mempool-tile-bl, mempool-tile-bt, mempool-group-bl, mempool-group-FP-noFE,
                             mempool-tile-post-FP, mempool-tile-post-FP-noFE, 
-                            mempool-tile-pp, mempool-tile-pp-noFE.
+                            mempool-tile-pp, mempool-tile-pp-noFE,
+                            axiMemPool,
+                            jay_ibex, jay_ldpc
     --clust-meth=METHOD     Clustering method to use. One amongst progressive-wl, random,
                             Naive_Geometric, hierarchical-geometric, kmeans-geometric, kmeans-random, onetoone.
                             or metal. [default: random]
@@ -97,7 +100,7 @@ output_dir = ""
 
 logger = logging.getLogger('default')
 
-SIG_SKIP = True
+SIG_SKIP = False
 
 # Skipping probability, [0,1]. Probability to skip a net durring the progressive-wl method.
 SKIP_PROB = 0.1
@@ -384,7 +387,8 @@ class Design:
                     outStr += net.name + " "
                     if net.wl == 0:
                         logger.error("Net '{}' has a null length, which is not normal.".format(net.name))
-                        sys.exit()
+                        net.wl = 0.1
+                        # sys.exit()
                     # Bounds computed based on the coordinates of the cell.
                     if method == "cell":
                         for gate in net.gates.values():
@@ -592,10 +596,11 @@ class Design:
                         break # Dirty, but I don't care
                     if inComponents and not 'END COMPONENTS' in line and not 'HALO' in line and not 'PROPERTY' in line:
                         # Parse the line and extract the cell
+                        line = line.strip()
                         split = line.split(' ')
-                        # print split
+                        # print(split)
                         try:
-                            split.index(";\n")
+                            split.index(";")
                         except:
                             gate = Gate(split[1])
                             # AssignStdCellToGate(gate, macros[split[2]])
@@ -702,6 +707,7 @@ class Design:
 
         with open(deffile, 'r') as f:
             line = f.readline()
+            line = line.strip()
             while line:
                 nextLine = ""
 
@@ -712,15 +718,18 @@ class Design:
                     break
 
                 if inPins and '- ' in line:
+                    # print(line.split(' '))
                     # Create the pin gate with its name
                     pin = Pin(line.split(' ')[1])
                     # netIndex = line.split(' ').index("NET")
                     # pin.net = self.nets[line.split(' ')[netIndex + 1]]
                     nextLine = f.readline()
+                    nextLine = nextLine.strip()
 
                     # Skip everything up to the 'PLACED' keyword
                     while not ' PLACED ' in nextLine and not '- ' in nextLine and not 'END PINS' in nextLine:
                         nextLine = f.readline()
+                        nextLine = nextLine.strip()
 
                     if ' PLACED ' in nextLine:
                         # Now we are at the 'PLACED' line
@@ -738,6 +747,7 @@ class Design:
                     line = nextLine
                 else:
                     line = f.readline()
+                    line = line.strip()
             logger.warning("Some pins were not placed by the PnR tool.\nThose were assigned default (0,0) coordinates.\n Approximate coordinates will be guessed from the connected gate through a closest-edge projection.")
 
         logger.info("Looking through the SPECIALNETS for unknown pin coordinates...")
@@ -871,9 +881,8 @@ class Design:
 
         with open(deffile, 'r') as f:
             with alive_bar() as bar:
-                line = f.readline()
+                line = f.readline().strip()
                 while line:
-                    bar()
 
                     # Extract Metal Layer name
                     if 'TRACKS' in line:
@@ -890,7 +899,6 @@ class Design:
 
                     if ('NETS' in line and not 'SPECIALNETS' in line) or (inNets):
                         inNets = True
-                        line = line.strip("\n")
 
                         if '- ' in line:
                             # new net
@@ -898,9 +906,15 @@ class Design:
                             net = Net(line.split(' ')[1])
                             instancesPerNetsStr += str(net.name)
                             netsStr += str(net.name) + "\n"
-                            # Read the next line after the net name,
-                            # it should contain the connected cells names.
-                            netDetails = f.readline()
+                            # Check if the net details are on the same line as the net name.
+                            if not '(' in line:
+                                # Read the next line after the net name,
+                                # it should contain the connected cells names.
+                                netDetails = f.readline().strip()
+                            else:
+                                netDetails = ' '.join(line.split(' ')[2:])
+                            bar()
+                            # print(netDetails)
                             while not 'ROUTED' in netDetails and not ';' in netDetails and not 'PROPERTY' in netDetails and not 'SOURCE' in netDetails:
 
                                 if "NONDEFAULTRULE" in netDetails:
@@ -909,22 +923,30 @@ class Design:
                                     # before the 'ROUTED' keyword.
                                     # If we find 'NONDEFAULTRULE', skip the line.
                                     netDetails = f.readline().strip()
+                                    bar()
                                     continue # ignores the end of the loop and skip to the next iteration.
 
-                                if "+ USE" in netDetails or "+ WEIGHT" in netDetails:
-                                    # This is an empty net. Even though it does connect gates,
-                                    # there is no routing information. Keep its length at 0.
-                                    netDetails = f.readline().strip()
-                                    continue
+                                # if "+ USE" in netDetails or "+ WEIGHT" in netDetails:
+                                #     # This is an empty net. Even though it does connect gates,
+                                #     # there is no routing information. Keep its length at 0.
+                                #     netDetails = f.readline().strip()
+                                #     bar()
+                                #     continue
+                                if "+ USE SIGNAL" in netDetails:
+                                    netDetails = netDetails.replace("+ USE SIGNAL", "")
+                                elif "+ USE CLOCK" in netDetails:
+                                    netDetails = netDetails.replace("+ USE CLOCK", "")
 
 
                                 split = netDetails.split(')') # Split the line so that each element is only one pin or gate
                                 for gateBlock in split:
                                     gateBlockSplit = gateBlock.split() # Split it again to isolate the gate/pin name
+                                    # print(gateBlockSplit)
 
                                     if len(gateBlockSplit) > 1 and gateBlockSplit[1] == "PIN":
                                         # this a pin, add its name to the net
                                         # '2' bacause we have {(, PIN, <pin_name>}
+                                        # print("This is a pin, add its net!")
                                         pin = self.pins.get(gateBlockSplit[2])
                                         net.addPin(pin)
                                         pin.net = net
@@ -955,6 +977,7 @@ class Design:
                                                         str(gate.x) + ', ' + str(gate.y) + "\n"
 
                                 netDetails = f.readline().strip()
+                                bar()
                             # If Pin was not placed during PnR and is connected to something else...
                             if pinDefaultCoord and (len(net.gates) + len(net.pins)) > 1:
                                 pinDefaultCoord = False
@@ -966,6 +989,7 @@ class Design:
                                 # such as FE* buffer removal after placement,
                                 # then nets are kept back but connected to nothing.
                                 line = f.readline().strip()
+                                bar()
                                 continue
 
                             netLength = 0
@@ -1060,6 +1084,7 @@ class Design:
                                 # Skip the rest of the details
                                 while not ';' in netDetails:
                                     netDetails = f.readline().strip()
+                                    bar()
 
                             #####
                             # MMST or closest neighbourg
@@ -1093,6 +1118,7 @@ class Design:
                                 # Skip the rest of the details
                                 while not ';' in netDetails:
                                     netDetails = f.readline().strip()
+                                    bar()
                                 if netLength == 0 and len(points) > 1:
                                     cellThatActuallyArePins = 0
                                     for cell in cellsToConnect:
@@ -1106,7 +1132,8 @@ class Design:
                                             cellThatActuallyArePins += 1
                                     if cellThatActuallyArePins == len(cellsToConnect):
                                         logger.debug("\tNet '{}' is only PINS that were not placed, skip net creation.".format(net.name))
-                                        line = f.readline()
+                                        line = f.readline().strip()
+                                        bar()
                                         continue
 
 
@@ -1222,6 +1249,7 @@ class Design:
 
 
                                     netDetails = f.readline().strip()
+                                    bar()
                             # netLength = netLength / UNITS_DISTANCE_MICRONS # 10^-4um to um
                             # if len(net.pins) > 0:
                             #     # logger.debug("'{}' needs to add pin length of {}".format(net.name, list(net.pins.values())[0].approximatedAdditionalLength))
@@ -1236,7 +1264,8 @@ class Design:
                         # end if
 
 
-                    line = f.readline()
+                    line = f.readline().strip()
+                    bar()
                 # end while
 
         with open("InstancesPerNet.out", 'w') as file:
@@ -1254,7 +1283,9 @@ class Design:
 
         pinCellsStr = ""
         pinCoordStr = ""
+        # print(f"WL computation, self.pins length: {len(self.pins)}")
         for pin in self.pins.values():
+            # print(f"pin name: {pin.name}, pin net: {pin.net}")
             pinCoordStr += "{} {} {}\n".format(pin.name, pin.x, pin.y)
             for cell in pin.net.gates.values():
                 pinCellsStr += "{}\n".format(cell.name)
@@ -2421,6 +2452,8 @@ class Design:
         logger.info("Kmeans runs: {}".format(run))
         plt.figure()
         plt.boxplot(centerSkew)
+        plt.axhline(y=convCriteria, color='r', linestyle='dotted', linewidth=1)
+        plt.xticks(rotation=90)
         plt.savefig('{}_{}_{}_centersSkew_nrun.png'.format(self.name, len(self.clusters), clusteringMethod))
         # plt.show()
 
@@ -3027,6 +3060,10 @@ def extractStdCells(tech, memory=False, outDir=""):
         lefdir = "/home/para/dev/def_parser/MemPool/PDK/"
         if memory == True:
             lefdir = "/home/para/dev/def_parser/MemPool/PDK"
+    elif tech == "in3_2023":
+        lefdir = "/home/dlh/Documents/def_parser/axiMemPool/lef"
+    elif tech == "asap7":
+        lefdir = "/home/dlh/Documents/def_parser/Jay/ibex/"
     else:
         logger.error("Technology '{}' not supported. Exiting.".format(tech))
         sys.exit()
@@ -3267,10 +3304,10 @@ if __name__ == "__main__":
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
     elif args["--design"] == "ldpc-4x4-serial":
-        deffile = "ldpc_4x4_serial.def/ldpc-4x4-serial.def"
+        deffile = "ldpc_4x4_serial.def" # 2023-04-30
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
-        stdCellsTech = "7nm"
+        stdCellsTech = "in3_2023"
     elif args["--design"] == "ldpc-4x4-serial-2022":
         deffile = "LDPC-4x4-2022/DU75_NonLegal-20220516T073622Z-001/ldpc_4x4_serial_NonLegal.def"
         MEMORY_MACROS = False
@@ -3322,6 +3359,11 @@ if __name__ == "__main__":
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
+    elif args["--design"] == "ldpc-4x4-full-2023":
+        deffile = "ldpc_full_DU45/ldpc_4x4_full.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2023"
     elif args["--design"] == "ccx":
         deffile = "7nm_Jul2017/ccx.def"
         MEMORY_MACROS = False
@@ -3411,6 +3453,11 @@ if __name__ == "__main__":
         MEMORY_MACROS = True
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2021-12"
+    elif args["--design"] == "axiMemPool":
+        deffile = "axiMemPool/mempool_system_16x512_postCTS.def"
+        MEMORY_MACROS = True
+        UNITS_DISTANCE_MICRONS = 10000
+        stdCellsTech = "in3_2023"
     elif args["--design"] == "ccx-in3":
         deffile = "CCX_in3/ccx_noFE.def"
         MEMORY_MACROS = False
@@ -3426,6 +3473,19 @@ if __name__ == "__main__":
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2021-12"
+    #####################
+    # Jay's experiments
+    #####################
+    elif args["--design"] == "jay_ibex":
+        deffile = "Jay/ibex/6_final.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 1000
+        stdCellsTech = "asap7"
+    elif args["--design"] == "jay_ldpc":
+        deffile = "Jay/LDPC_FULL/6_final.def"
+        MEMORY_MACROS = False
+        UNITS_DISTANCE_MICRONS = 1000
+        stdCellsTech = "asap7"
     print(stdCellsTech)
 
     if args["--design"]:
