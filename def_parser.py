@@ -709,6 +709,7 @@ class Design:
             line = f.readline()
             line = line.strip()
             while line:
+                line = line.strip()
                 nextLine = ""
 
                 if 'PINS ' in line:
@@ -747,7 +748,6 @@ class Design:
                     line = nextLine
                 else:
                     line = f.readline()
-                    line = line.strip()
             logger.warning("Some pins were not placed by the PnR tool.\nThose were assigned default (0,0) coordinates.\n Approximate coordinates will be guessed from the connected gate through a closest-edge projection.")
 
         logger.info("Looking through the SPECIALNETS for unknown pin coordinates...")
@@ -883,6 +883,7 @@ class Design:
             with alive_bar() as bar:
                 line = f.readline().strip()
                 while line:
+                    line = line.strip()
 
                     # Extract Metal Layer name
                     if 'TRACKS' in line:
@@ -947,6 +948,7 @@ class Design:
                                         # this a pin, add its name to the net
                                         # '2' bacause we have {(, PIN, <pin_name>}
                                         # print("This is a pin, add its net!")
+                                        # print(gateBlockSplit)
                                         pin = self.pins.get(gateBlockSplit[2])
                                         net.addPin(pin)
                                         pin.net = net
@@ -1264,7 +1266,7 @@ class Design:
                         # end if
 
 
-                    line = f.readline().strip()
+                    line = f.readline()
                     bar()
                 # end while
 
@@ -3360,7 +3362,7 @@ if __name__ == "__main__":
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "7nm"
     elif args["--design"] == "ldpc-4x4-full-2023":
-        deffile = "ldpc_full_DU45/ldpc_4x4_full.def"
+        deffile = "Full_DU45_flat/ldpc_4x4_full_flat.def"
         MEMORY_MACROS = False
         UNITS_DISTANCE_MICRONS = 10000
         stdCellsTech = "in3_2023"
